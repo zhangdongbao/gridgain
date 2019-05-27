@@ -72,10 +72,10 @@
         </layout>
     </appender>
 
-    <!--<logger name="org.apache.ignite.internal.diagnostic">-->
-        <!--<level value="INFO"/>-->
-        <!--<appender-ref ref="CONSOLE"/>-->
-    <!--</logger>-->
+    <logger name="org.apache.ignite.internal.diagnostic">
+        <level value="INFO"/>
+        <appender-ref ref="CONSOLE"/>
+    </logger>
 
     <!--
         Uncomment to enable Ignite query execution debugging.
@@ -115,7 +115,6 @@
 
         <!-- Append to file and console. -->
         <appender-ref ref="FILE"/>
-        <appender-ref ref="CONSOLE"/>
         <appender-ref ref="CONSOLE_ERR"/>
     </root>
 </log4j:configuration>
