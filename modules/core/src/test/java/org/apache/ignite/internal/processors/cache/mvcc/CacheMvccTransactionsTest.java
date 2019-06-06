@@ -36,6 +36,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import javax.cache.Cache;
 import javax.cache.CacheException;
 import javax.cache.expiry.Duration;
@@ -91,7 +92,13 @@ import org.apache.ignite.transactions.Transaction;
 import org.apache.ignite.transactions.TransactionIsolation;
 import org.jetbrains.annotations.Nullable;
 import org.junit.Ignore;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TestRule;
+import org.junit.runner.Description;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.model.Statement;
 
 import static org.apache.ignite.cache.CacheMode.PARTITIONED;
 import static org.apache.ignite.cache.CacheWriteSynchronizationMode.FULL_SYNC;
@@ -106,7 +113,27 @@ import static org.apache.ignite.transactions.TransactionIsolation.REPEATABLE_REA
  *
  */
 @SuppressWarnings("unchecked")
+@RunWith(Parameterized.class)
 public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
+    @Parameterized.Parameters
+    public static List<Object[]> params() {
+        return IntStream.range(0, 100).mapToObj(i -> new Object[0]).collect(Collectors.toList());
+    }
+
+    @Rule
+    public TestRule filterName = new TestRule() {
+        @Override public Statement apply(Statement base, Description description) {
+            if (description.getMethodName().contains("testMvccCoordinatorChangeSimple"))
+                return base;
+
+            return new Statement() {
+                @Override public void evaluate() throws Throwable {
+                    // skip test
+                }
+            };
+        }
+    };
+
     /** {@inheritDoc} */
     @Override protected CacheMode cacheMode() {
         return PARTITIONED;
