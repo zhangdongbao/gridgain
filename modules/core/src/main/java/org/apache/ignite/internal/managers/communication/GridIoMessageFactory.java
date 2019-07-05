@@ -1115,6 +1115,11 @@ public class GridIoMessageFactory implements MessageFactory {
 
                 break;
 
+            case GridIoSecurityAwareMessage.TYPE_CODE:
+                msg = new GridIoSecurityAwareMessage();
+
+                break;
+
             case 170:
                 msg = new DeadlockProbe();
 
