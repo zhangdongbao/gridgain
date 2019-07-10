@@ -1527,6 +1527,7 @@ public class IgniteH2Indexing implements GridQueryIndexing {
         boolean loc = true;
 
         final boolean replicated = U.isFlagSet(flags, GridH2QueryRequest.FLAG_REPLICATED);
+        boolean lazy = U.isFlagSet(flags, GridH2QueryRequest.FLAG_LAZY);
 
         GridCacheContext<?, ?> cctx0;
 
@@ -1562,7 +1563,8 @@ public class IgniteH2Indexing implements GridQueryIndexing {
             .setEnforceJoinOrder(fldsQry.isEnforceJoinOrder())
             .setLocal(fldsQry.isLocal())
             .setPageSize(fldsQry.getPageSize())
-            .setTimeout(fldsQry.getTimeout(), TimeUnit.MILLISECONDS);
+            .setTimeout(fldsQry.getTimeout(), TimeUnit.MILLISECONDS)
+            .setLazy(lazy);
 
         QueryCursorImpl<List<?>> cur;
 
@@ -2694,7 +2696,8 @@ public class IgniteH2Indexing implements GridQueryIndexing {
             .setEnforceJoinOrder(qryDesc.enforceJoinOrder())
             .setLocal(qryDesc.local())
             .setPageSize(qryParams.pageSize())
-            .setTimeout(qryParams.timeout(), TimeUnit.MILLISECONDS);
+            .setTimeout(qryParams.timeout(), TimeUnit.MILLISECONDS)
+            .setLazy(qryParams.lazy());
 
         Iterable<List<?>> cur;
 
@@ -2821,7 +2824,8 @@ public class IgniteH2Indexing implements GridQueryIndexing {
                         .setEnforceJoinOrder(qryDesc.enforceJoinOrder())
                         .setLocal(qryDesc.local())
                         .setPageSize(qryParams.pageSize())
-                        .setTimeout((int)timeout, TimeUnit.MILLISECONDS);
+                        .setTimeout((int)timeout, TimeUnit.MILLISECONDS)
+                        .setLazy(qryParams.lazy());
 
                     FieldsQueryCursor<List<?>> cur = executeSelectForDml(
                         qryDesc.schemaName(),
