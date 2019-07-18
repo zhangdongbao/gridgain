@@ -33,11 +33,11 @@ namespace Apache.Ignite.Core.Tests.ApiParity
     {
         /** Property regex. */
         private static readonly Regex JavaPropertyRegex = 
-            new Regex("(@Deprecated)?\\s+public [^=^\r^\n]+ (\\w+)\\(\\) {", RegexOptions.Compiled);
+            new Regex("(@Deprecated\\s+)?(?:@\\w+\\s+)*public [^=^\r^\n]+ (\\w+)\\(\\) {", RegexOptions.Compiled);
 
         /** Interface method regex. */
         private static readonly Regex JavaInterfaceMethodRegex = 
-            new Regex("(@Deprecated)?\\s+(@Override)?\\s+public [^=^\r^\n]+ (\\w+)\\(.*?\\)",
+            new Regex("\n\\s+(@Deprecated\\s+)?(?:@\\w+\\s+)*public [^=^\r^\n]+ (\\w+)\\(.*?\\)",
                 RegexOptions.Compiled | RegexOptions.Singleline);
 
         /** Properties that are not needed on .NET side. */
@@ -87,6 +87,22 @@ namespace Apache.Ignite.Core.Tests.ApiParity
                 .Except(excludedMembers ?? Enumerable.Empty<string>());
 
             CheckParity(type, knownMissingMembers, knownMappings, javaMethods, dotNetMembers);
+        }
+
+        [TestCase(@"*/ 
+                        @Deprecated 
+                        public int getWalHistorySize()")]
+        [TestCase(@"
+                        @Deprecated @Override public BigDecimal getBigDecimal(int columnIndex, int scale)")]
+        [TestCase(@"
+                        @Deprecated 
+                        @Override 
+                        public BigDecimal getBigDecimal(int columnIndex, int scale)")]
+        [TestCase(@"@Nullable
+                        public BigDecimal getBigDecimal(int columnIndex, int scale)")]
+        public static void CheckJavaInterfaceMethodRegex(string text)
+        {
+            Assert.IsTrue(JavaInterfaceMethodRegex.IsMatch(text), text);
         }
 
         /// <summary>
@@ -191,8 +207,8 @@ namespace Apache.Ignite.Core.Tests.ApiParity
 
             return JavaInterfaceMethodRegex.Matches(text)
                 .OfType<Match>()
-                .Where(m => m.Groups[1].Value == string.Empty)
-                .Select(m => m.Groups[3].Value.Replace("get", ""))
+                .Where(m => string.IsNullOrWhiteSpace(m.Groups[1].Value))
+                .Select(m => m.Groups[2].Value.Replace("get", ""))
                 .Except(UnneededMethods);
         }
 
