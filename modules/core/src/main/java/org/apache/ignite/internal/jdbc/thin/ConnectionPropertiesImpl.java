@@ -229,6 +229,10 @@ public class ConnectionPropertiesImpl implements ConnectionProperties, Serializa
         0L, false, 0, Integer.MAX_VALUE);
 
 
+    /** Keep binary objects in binary form. */
+    private BooleanProperty keepBinaries = new BooleanProperty("keepBinaries",
+        "Whether to keep binary objects in binary form.", false, false);
+
     /** Properties array. */
     private final ConnectionProperty [] propsArray = {
         distributedJoins, enforceJoinOrder, collocated, replicatedOnly, autoCloseServerCursor,
@@ -246,6 +250,7 @@ public class ConnectionPropertiesImpl implements ConnectionProperties, Serializa
         qryMaxMemory,
         qryTimeout,
         connTimeout
+        keepBinaries
     };
 
     /** {@inheritDoc} */
@@ -622,6 +627,16 @@ public class ConnectionPropertiesImpl implements ConnectionProperties, Serializa
     /** {@inheritDoc} */
     @Override public void setConnectionTimeout(@Nullable Integer timeout) throws SQLException {
         connTimeout.setValue(timeout);
+    }
+
+    /** {@inheritDoc} */
+    @Override public boolean isKeepBinaries() {
+        return keepBinaries.value();
+    }
+
+    /** {@inheritDoc} */
+    @Override public void setKeepBinaries(boolean keepBinaries) {
+        this.keepBinaries.setValue(keepBinaries);
     }
 
     /**

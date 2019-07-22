@@ -60,7 +60,7 @@ public class JdbcThinResultSetSelfTest extends JdbcThinAbstractSelfTest {
     /** SQL query. */
     private static final String SQL =
         "select id, boolVal, byteVal, shortVal, intVal, longVal, floatVal, " +
-            "doubleVal, bigVal, strVal, arrVal, dateVal, timeVal, tsVal " +
+            "doubleVal, bigVal, strVal, arrVal, dateVal, timeVal, tsVal, f1 " +
             "from TestObject where id = 1";
 
     /** Statement. */
@@ -687,14 +687,25 @@ public class JdbcThinResultSetSelfTest extends JdbcThinAbstractSelfTest {
      * @throws Exception If failed.
      */
     @Test
-    public void testObjectNotSupported() throws Exception {
-        assertThrowsAnyCause(log, new Callable<Object>() {
-            @Override public Object call() throws Exception {
-                stmt.executeQuery("select f1 from TestObject where id = 1");
+    public void testObject() throws Exception {
+        ResultSet rs = stmt.executeQuery(SQL);
 
-                return null;
+        int cnt = 0;
+
+        TestObjectField exp = new TestObjectField(100, "AAAA");
+        while (rs.next()) {
+            if (cnt == 0) {
+                assert rs.getObject("f1").equals(exp);
+
+                assert rs.getObject(15).equals(exp);
+                assert rs.getObject(15, TestObjectField.class).equals(exp);
+                assert rs.getObject(15, Object.class).equals(exp);
             }
-        }, SQLException.class, "Custom objects are not supported");
+
+            cnt++;
+        }
+
+        assert cnt == 1;
     }
 
     /**
@@ -1604,6 +1615,18 @@ public class JdbcThinResultSetSelfTest extends JdbcThinAbstractSelfTest {
         checkResultSetClosed(new RunnableX() {
             @Override public void runx() throws Exception {
                 rs.getTimestamp("id", new GregorianCalendar());
+            }
+        });
+
+        checkResultSetClosed(new RunnableX() {
+            @Override public void runx() throws Exception {
+                rs.getObject("f1");
+            }
+        });
+
+        checkResultSetClosed(new RunnableX() {
+            @Override public void runx() throws Exception {
+                rs.getObject("f1", TestObjectField.class);
             }
         });
 

@@ -36,9 +36,11 @@ import java.sql.Types;
 import java.util.Date;
 import java.util.concurrent.Callable;
 import org.apache.ignite.IgniteCache;
+import org.apache.ignite.binary.BinaryObject;
 import org.apache.ignite.cache.query.annotations.QuerySqlField;
 import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
+import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.testframework.GridTestUtils;
 import org.apache.ignite.testframework.GridTestUtils.RunnableX;
 import org.junit.Test;
@@ -65,12 +67,12 @@ import static org.apache.ignite.cache.CacheWriteSynchronizationMode.FULL_SYNC;
 @SuppressWarnings("ThrowableNotThrown")
 public class JdbcThinPreparedStatementSelfTest extends JdbcThinAbstractSelfTest {
     /** URL. */
-    private static final String URL = "jdbc:ignite:thin://127.0.0.1/";
+    private static final String URL = "jdbc:ignite:thin://127.0.0.1";
 
     /** SQL query. */
     private static final String SQL_PART =
         "select id, boolVal, byteVal, shortVal, intVal, longVal, floatVal, " +
-            "doubleVal, bigVal, strVal, arrVal, dateVal, timeVal, tsVal " +
+            "doubleVal, bigVal, strVal, arrVal, dateVal, timeVal, tsVal, f1 " +
             "from TestObject ";
 
     /** Connection. */
@@ -123,6 +125,7 @@ public class JdbcThinPreparedStatementSelfTest extends JdbcThinAbstractSelfTest 
         o.timeVal = new Time(1);
         o.tsVal = new Timestamp(1);
         o.urlVal = new URL("http://abc.com/");
+        o.f1 = new TestObjectField(100, "AAAA");
 
         cache.put(1, o);
         cache.put(2, new TestObject(2));
@@ -130,9 +133,7 @@ public class JdbcThinPreparedStatementSelfTest extends JdbcThinAbstractSelfTest 
 
     /** {@inheritDoc} */
     @Override protected void beforeTest() throws Exception {
-        conn = DriverManager.getConnection(URL);
-
-        conn.setSchema('"' + DEFAULT_CACHE_NAME + '"');
+        conn = createConnection(false);
 
         assert conn != null;
         assert !conn.isClosed();
@@ -151,6 +152,19 @@ public class JdbcThinPreparedStatementSelfTest extends JdbcThinAbstractSelfTest 
 
             assert conn.isClosed();
         }
+    }
+
+    /**
+     * Create new JDBC connection to the grid.
+     *
+     * @param keepBinaries Whether to keep bin object in binary format.
+     * @return New connection.
+     */
+    private Connection createConnection(boolean keepBinaries) throws SQLException {
+        String url = keepBinaries ? URL + "?keepBinaries=true" : URL;
+        Connection conn = DriverManager.getConnection(url);
+        conn.setSchema('"' + DEFAULT_CACHE_NAME + '"');
+        return conn;
     }
 
     /**
@@ -187,6 +201,101 @@ public class JdbcThinPreparedStatementSelfTest extends JdbcThinAbstractSelfTest 
         }
 
         assertEquals(1, cnt);
+    }
+
+    /**
+     * Ensure binary object's meta is properly synchronized between connections.
+     *
+     * @throws SQLException In case of any sql error.
+     */
+    @Test
+    public void testObjectAnotherConnection() throws SQLException {
+        try (Connection anotherConn = createConnection(false)) {
+            stmt = anotherConn.prepareStatement(SQL_PART + " where f1 is not distinct from ?");
+            stmt.setObject(1, new TestObjectField(100, "AAAA"));
+
+            int cnt = 0;
+            ResultSet rs = stmt.executeQuery();
+            while (rs.next()) {
+                if (cnt == 0)
+                    assert rs.getInt("id") == 1;
+                    assert rs.getObject("f1") instanceof TestObjectField;
+
+                cnt++;
+            }
+            assert cnt == 1;
+
+            stmt.setNull(1, Types.JAVA_OBJECT);
+            stmt.execute();
+
+            cnt = 0;
+            rs = stmt.getResultSet();
+            while (rs.next()) {
+                if (cnt == 0)
+                    assert rs.getInt("id") == 2;
+
+                cnt++;
+            }
+            assert cnt == 1;
+        }
+    }
+
+    /**
+     * Ensure custom objects can be retrieved as {@link BinaryObject}
+     * if keepBinaries flag is set to {@code true} on connection.
+     *
+     * @throws SQLException In case of any sql error.
+     */
+    @Test
+    public void testObjectConnectionWithKeepBinariesFlag() throws SQLException {
+        try (Connection anotherConn = createConnection(true)) {
+            stmt = anotherConn.prepareStatement(SQL_PART + " where f1 is not distinct from ?");
+            stmt.setObject(1, new TestObjectField(100, "AAAA"));
+
+            int cnt = 0;
+            ResultSet rs = stmt.executeQuery();
+            while (rs.next()) {
+                if (cnt == 0)
+                    assert rs.getObject("f1") instanceof BinaryObject;
+
+                cnt++;
+            }
+            assert cnt == 1;
+        }
+    }
+
+    /**
+     * Ensure custom objects can be retrieved through JdbcThinConnection.
+     *
+     * @throws Exception If failed.
+     */
+    @Test
+    public void testObject() throws Exception {
+        stmt = conn.prepareStatement(SQL_PART + " where f1 is not distinct from ?");
+        stmt.setObject(1, new TestObjectField(100, "AAAA"));
+
+        int cnt = 0;
+        ResultSet rs = stmt.executeQuery();
+        while (rs.next()) {
+            if (cnt == 0)
+                assert rs.getInt("id") == 1;
+
+            cnt++;
+        }
+        assert cnt == 1;
+
+        stmt.setNull(1, Types.JAVA_OBJECT);
+        stmt.execute();
+
+        cnt = 0;
+        rs = stmt.getResultSet();
+        while (rs.next()) {
+            if (cnt == 0)
+                assert rs.getInt("id") == 2;
+
+            cnt++;
+        }
+        assert cnt == 1;
     }
 
     /**
@@ -942,46 +1051,11 @@ public class JdbcThinPreparedStatementSelfTest extends JdbcThinAbstractSelfTest 
             }
         });
 
-        GridTestUtils.assertThrows(log,
-            new Callable<Object>() {
-                @Override public Object call() throws Exception {
-                    stmt.setURL(1, new URL("http://test"));
-
-                    return null;
-                }
-            },
-            SQLException.class, "Parameter type is unsupported");
-
-
-        GridTestUtils.assertThrows(log,
-            new Callable<Object>() {
-                @Override public Object call() throws Exception {
-                    stmt.setObject(1, new TestObject(0));
-
-                    return null;
-                }
-            },
-            SQLException.class, "Parameter type is unsupported");
-
-        GridTestUtils.assertThrows(log,
-            new Callable<Object>() {
-                @Override public Object call() throws Exception {
-                    stmt.setObject(1, new TestObject(0), Types.JAVA_OBJECT);
-
-                    return null;
-                }
-            },
-            SQLException.class, "Parameter type is unsupported");
-
-        GridTestUtils.assertThrows(log,
-            new Callable<Object>() {
-                @Override public Object call() throws Exception {
-                    stmt.setObject(1, new TestObject(0), Types.JAVA_OBJECT, 0);
-
-                    return null;
-                }
-            },
-            SQLException.class, "Parameter type is unsupported");
+        checkNotSupported(new RunnableX() {
+            @Override public void runx() throws Exception {
+                stmt.setURL(1, new URL("http://test"));
+            }
+        });
     }
 
     /**
@@ -1048,11 +1122,60 @@ public class JdbcThinPreparedStatementSelfTest extends JdbcThinAbstractSelfTest 
         @QuerySqlField
         private URL urlVal;
 
+        /** */
+        @QuerySqlField
+        private TestObjectField f1;
+
         /**
          * @param id ID.
          */
         private TestObject(int id) {
             this.id = id;
+        }
+    }
+
+    /**
+     * Dummy object represents object field of {@link TestObject TestObject}.
+     */
+    @SuppressWarnings("PackageVisibleField")
+    private static class TestObjectField implements Serializable {
+        /** */
+        final int a;
+
+        /** */
+        final String b;
+
+        /**
+         * @param a A.
+         * @param b B.
+         */
+        private TestObjectField(int a, String b) {
+            this.a = a;
+            this.b = b;
+        }
+
+        /** {@inheritDoc} */
+        @Override public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            TestObjectField that = (TestObjectField)o;
+
+            return a == that.a && !(b != null ? !b.equals(that.b) : that.b != null);
+        }
+
+        /** {@inheritDoc} */
+        @Override public int hashCode() {
+            int res = a;
+
+            res = 31 * res + (b != null ? b.hashCode() : 0);
+
+            return res;
+        }
+
+        /** {@inheritDoc} */
+        @Override public String toString() {
+            return S.toString(TestObjectField.class, this);
         }
     }
 }

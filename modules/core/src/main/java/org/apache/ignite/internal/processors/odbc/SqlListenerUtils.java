@@ -134,7 +134,7 @@ public abstract class SqlListenerUtils {
                 reader.in().position(reader.in().position() - 1);
 
                 if (binObjAllow)
-                    return reader.readObjectDetached();
+                    return GridBinaryMarshaller.KEEP_BINARIES.get() ? reader.readObjectDetached() : reader.readObject();
                 else
                     throw new BinaryObjectException("Custom objects are not supported");
         }

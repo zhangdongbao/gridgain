@@ -41,7 +41,7 @@ public class JdbcUtils {
                 writer.writeInt(row.size());
 
                 for (Object obj : row)
-                    SqlListenerUtils.writeObject(writer, obj, false);
+                    SqlListenerUtils.writeObject(writer, obj, true);
             }
         }
     }
@@ -62,7 +62,7 @@ public class JdbcUtils {
                 List<Object> col = new ArrayList<>(colsSize);
 
                 for (int colCnt = 0; colCnt < colsSize; ++colCnt)
-                    col.add(SqlListenerUtils.readObject(reader, false));
+                    col.add(SqlListenerUtils.readObject(reader, true));
 
                 items.add(col);
             }

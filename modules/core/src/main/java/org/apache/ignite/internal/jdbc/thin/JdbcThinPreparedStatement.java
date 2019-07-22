@@ -38,7 +38,6 @@ import java.sql.Time;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Calendar;
-import org.apache.ignite.internal.processors.odbc.SqlListenerUtils;
 import org.apache.ignite.internal.processors.odbc.SqlStateCode;
 import org.apache.ignite.internal.processors.odbc.jdbc.JdbcMetaParamsRequest;
 import org.apache.ignite.internal.processors.odbc.jdbc.JdbcMetaParamsResult;
@@ -357,7 +356,9 @@ public class JdbcThinPreparedStatement extends JdbcThinStatement implements Prep
 
     /** {@inheritDoc} */
     @Override public void setURL(int paramIdx, URL x) throws SQLException {
-        setArgument(paramIdx, x);
+        ensureNotClosed();
+
+        throw new SQLFeatureNotSupportedException("Parameter type is unsupported. [cls=" + URL.class + ']');
     }
 
     /** {@inheritDoc} */
@@ -528,10 +529,6 @@ public class JdbcThinPreparedStatement extends JdbcThinStatement implements Prep
      */
     private void setArgument(int paramIdx, Object val) throws SQLException {
         ensureNotClosed();
-
-        if (val != null && !SqlListenerUtils.isPlainType(val.getClass()))
-            throw new SQLException("Parameter type is unsupported. [cls=" + val.getClass() + ']',
-                SqlStateCode.INVALID_PARAMETER_VALUE);
 
         if (paramIdx < 1)
             throw new SQLException("Parameter index is invalid: " + paramIdx);

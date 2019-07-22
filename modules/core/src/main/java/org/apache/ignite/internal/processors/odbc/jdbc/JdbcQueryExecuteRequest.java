@@ -153,7 +153,7 @@ public class JdbcQueryExecuteRequest extends JdbcRequest {
 
         if (args != null) {
             for (Object arg : args)
-                SqlListenerUtils.writeObject(writer, arg, false);
+                SqlListenerUtils.writeObject(writer, arg, true);
         }
 
         if (ver.compareTo(VER_2_7_0) >= 0)
@@ -180,7 +180,7 @@ public class JdbcQueryExecuteRequest extends JdbcRequest {
         args = new Object[argsNum];
 
         for (int i = 0; i < argsNum; ++i)
-            args[i] = SqlListenerUtils.readObject(reader, false);
+            args[i] = SqlListenerUtils.readObject(reader, true);
 
         if (ver.compareTo(VER_2_7_0) >= 0)
             autoCommit = reader.readBoolean();
