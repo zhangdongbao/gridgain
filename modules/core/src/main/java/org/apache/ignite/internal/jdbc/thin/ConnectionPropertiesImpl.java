@@ -230,7 +230,7 @@ public class ConnectionPropertiesImpl implements ConnectionProperties, Serializa
 
 
     /** Keep binary objects in binary form. */
-    private BooleanProperty keepBinaries = new BooleanProperty("keepBinaries",
+    private BooleanProperty keepBinary = new BooleanProperty("keepBinary",
         "Whether to keep binary objects in binary form.", false, false);
 
     /** Properties array. */
@@ -249,8 +249,8 @@ public class ConnectionPropertiesImpl implements ConnectionProperties, Serializa
         affinityAwarenessPartDistributionsCacheSize,
         qryMaxMemory,
         qryTimeout,
-        connTimeout
-        keepBinaries
+        connTimeout,
+        keepBinary
     };
 
     /** {@inheritDoc} */
@@ -630,13 +630,13 @@ public class ConnectionPropertiesImpl implements ConnectionProperties, Serializa
     }
 
     /** {@inheritDoc} */
-    @Override public boolean isKeepBinaries() {
-        return keepBinaries.value();
+    @Override public boolean isKeepBinary() {
+        return keepBinary.value();
     }
 
     /** {@inheritDoc} */
-    @Override public void setKeepBinaries(boolean keepBinaries) {
-        this.keepBinaries.setValue(keepBinaries);
+    @Override public void setKeepBinary(boolean keepBinary) {
+        this.keepBinary.setValue(keepBinary);
     }
 
     /**

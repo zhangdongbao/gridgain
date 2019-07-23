@@ -25,13 +25,13 @@ import org.apache.ignite.internal.processors.odbc.ClientListenerProtocolVersion;
 import org.apache.ignite.internal.util.typedef.internal.S;
 
 /**
- * JDBC get binary type schema result.
+ * JDBC get binary type metadata result.
  */
 public class JdbcBinaryTypeGetResult extends JdbcResult {
     /** ID of initial request. */
     private long reqId;
 
-    /** Binary type schema. */
+    /** Binary type metadata. */
     private BinaryMetadata meta;
 
     /** Default constructor for deserialization purpose. */
@@ -41,7 +41,7 @@ public class JdbcBinaryTypeGetResult extends JdbcResult {
 
     /**
      * @param reqId ID of initial request.
-     * @param meta Schema of binary type.
+     * @param meta Metadata of binary type.
      */
     public JdbcBinaryTypeGetResult(long reqId, BinaryMetadata meta) {
         super(BINARY_TYPE_GET);
@@ -51,9 +51,9 @@ public class JdbcBinaryTypeGetResult extends JdbcResult {
     }
 
     /**
-     * Returns schema of binary type.
+     * Returns metadata of binary type.
      *
-     * @return Schema of binary type.
+     * @return Metadata of binary type.
      */
     public BinaryMetadata meta() {
         return meta;

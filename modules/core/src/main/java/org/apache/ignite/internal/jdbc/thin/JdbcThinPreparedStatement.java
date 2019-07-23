@@ -38,6 +38,7 @@ import java.sql.Time;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Calendar;
+import org.apache.ignite.internal.processors.odbc.SqlListenerUtils;
 import org.apache.ignite.internal.processors.odbc.SqlStateCode;
 import org.apache.ignite.internal.processors.odbc.jdbc.JdbcMetaParamsRequest;
 import org.apache.ignite.internal.processors.odbc.jdbc.JdbcMetaParamsResult;
@@ -530,6 +531,9 @@ public class JdbcThinPreparedStatement extends JdbcThinStatement implements Prep
     private void setArgument(int paramIdx, Object val) throws SQLException {
         ensureNotClosed();
 
+        if (val != null && !SqlListenerUtils.isPlainType(val.getClass()))
+            ensureCustomObjectsSupported();
+
         if (paramIdx < 1)
             throw new SQLException("Parameter index is invalid: " + paramIdx);
 
@@ -540,5 +544,15 @@ public class JdbcThinPreparedStatement extends JdbcThinStatement implements Prep
             args.add(null);
 
         args.set(paramIdx - 1, val);
+    }
+
+    /**
+     * Ensures that statement support custom objects.
+     *
+     * @throws SQLException If statement don't support custom objects.
+     */
+    private void ensureCustomObjectsSupported() throws SQLException {
+        if (!conn.isCustomObjectSupported())
+            throw new SQLException("Custom objects are not supported by server");
     }
 }

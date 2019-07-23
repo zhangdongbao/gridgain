@@ -26,6 +26,7 @@ import org.apache.ignite.internal.sql.optimizer.affinity.PartitionResultMarshale
 import org.apache.ignite.internal.util.typedef.internal.S;
 
 import static org.apache.ignite.internal.processors.odbc.jdbc.JdbcConnectionContext.VER_2_8_0;
+import static org.apache.ignite.internal.processors.odbc.jdbc.JdbcConnectionContext.VER_2_9_0;
 
 /**
  * JDBC query execute result.
@@ -157,7 +158,8 @@ public class JdbcQueryExecuteResult extends JdbcResult {
         if (isQuery) {
             last = reader.readBoolean();
 
-            items = JdbcUtils.readItems(reader);
+            boolean binObjAllowed = ver.compareTo(VER_2_9_0) >= 0;
+            items = JdbcUtils.readItems(reader, binObjAllowed);
         }
         else {
             last = true;

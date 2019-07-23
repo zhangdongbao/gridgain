@@ -101,7 +101,7 @@ class ClientBinaryMarshaller {
 
         marsh.setContext(marshCtx);
 
-        ctx.configure(marsh, igniteCfg);
+        ctx.configure(marsh, binCfg);
 
         ctx.registerUserTypesSchema();
 

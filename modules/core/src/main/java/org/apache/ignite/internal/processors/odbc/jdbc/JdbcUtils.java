@@ -50,7 +50,7 @@ public class JdbcUtils {
      * @param reader Binary reader.
      * @return Query results items.
      */
-    public static List<List<Object>> readItems(BinaryReaderExImpl reader) {
+    public static List<List<Object>> readItems(BinaryReaderExImpl reader, boolean binObjAllowed) {
         int rowsSize = reader.readInt();
 
         if (rowsSize > 0) {
@@ -62,7 +62,7 @@ public class JdbcUtils {
                 List<Object> col = new ArrayList<>(colsSize);
 
                 for (int colCnt = 0; colCnt < colsSize; ++colCnt)
-                    col.add(SqlListenerUtils.readObject(reader, true));
+                    col.add(SqlListenerUtils.readObject(reader, binObjAllowed));
 
                 items.add(col);
             }

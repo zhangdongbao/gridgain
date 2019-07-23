@@ -23,7 +23,7 @@ import org.apache.ignite.internal.processors.odbc.ClientListenerProtocolVersion;
 import org.apache.ignite.internal.util.typedef.internal.S;
 
 /**
- * JDBC get binary type schema request.
+ * JDBC get binary type metadata request.
  */
 public class JdbcBinaryTypeGetRequest extends JdbcRequest {
     /** ID of binary type. */

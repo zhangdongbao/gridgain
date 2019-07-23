@@ -43,6 +43,7 @@ import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.testframework.GridTestUtils;
 import org.apache.ignite.testframework.GridTestUtils.RunnableX;
+import org.junit.Assert;
 import org.junit.Test;
 
 import static java.sql.Types.BIGINT;
@@ -157,11 +158,11 @@ public class JdbcThinPreparedStatementSelfTest extends JdbcThinAbstractSelfTest 
     /**
      * Create new JDBC connection to the grid.
      *
-     * @param keepBinaries Whether to keep bin object in binary format.
+     * @param keepBinary Whether to keep bin object in binary format.
      * @return New connection.
      */
-    private Connection createConnection(boolean keepBinaries) throws SQLException {
-        String url = keepBinaries ? URL + "?keepBinaries=true" : URL;
+    private Connection createConnection(boolean keepBinary) throws SQLException {
+        String url = keepBinary ? URL + "?keepBinary=true" : URL;
         Connection conn = DriverManager.getConnection(url);
         conn.setSchema('"' + DEFAULT_CACHE_NAME + '"');
         return conn;
@@ -209,45 +210,44 @@ public class JdbcThinPreparedStatementSelfTest extends JdbcThinAbstractSelfTest 
      * @throws SQLException In case of any sql error.
      */
     @Test
-    public void testObjectAnotherConnection() throws SQLException {
+    public void testObjectDifferentConnections() throws SQLException {
+        final TestObjectField exp = new TestObjectField(42, "BBBB");
+
+        conn.createStatement().execute("CREATE TABLE test(id INT PRIMARY KEY, f1 OTHER)");
+
+        stmt = conn.prepareStatement("INSERT INTO test(id, f1) VALUES (?, ?)");
+        stmt.setInt(1, exp.a);
+        stmt.setObject(2, exp);
+        stmt.execute();
+
         try (Connection anotherConn = createConnection(false)) {
-            stmt = anotherConn.prepareStatement(SQL_PART + " where f1 is not distinct from ?");
-            stmt.setObject(1, new TestObjectField(100, "AAAA"));
+            try (PreparedStatement stmt = anotherConn.prepareStatement("SELECT id, f1 FROM test WHERE id = ?")) {
+                stmt.setInt(1, exp.a);
 
-            int cnt = 0;
-            ResultSet rs = stmt.executeQuery();
-            while (rs.next()) {
-                if (cnt == 0)
-                    assert rs.getInt("id") == 1;
-                    assert rs.getObject("f1") instanceof TestObjectField;
+                int cnt = 0;
+                ResultSet rs = stmt.executeQuery();
+                while (rs.next()) {
+                    if (cnt == 0) {
+                        Assert.assertTrue("Result's value type mismatch",
+                            rs.getObject("f1") instanceof TestObjectField);
+                        Assert.assertEquals("Result's value mismatch", exp, rs.getObject("f1", TestObjectField.class));
+                    }
 
-                cnt++;
+                    cnt++;
+                }
+                Assert.assertEquals("There should be exactly 1 result", 1, cnt);
             }
-            assert cnt == 1;
-
-            stmt.setNull(1, Types.JAVA_OBJECT);
-            stmt.execute();
-
-            cnt = 0;
-            rs = stmt.getResultSet();
-            while (rs.next()) {
-                if (cnt == 0)
-                    assert rs.getInt("id") == 2;
-
-                cnt++;
-            }
-            assert cnt == 1;
         }
     }
 
     /**
      * Ensure custom objects can be retrieved as {@link BinaryObject}
-     * if keepBinaries flag is set to {@code true} on connection.
+     * if keepBinary flag is set to {@code true} on connection.
      *
      * @throws SQLException In case of any sql error.
      */
     @Test
-    public void testObjectConnectionWithKeepBinariesFlag() throws SQLException {
+    public void testObjectConnectionWithKeepBinaryFlag() throws SQLException {
         try (Connection anotherConn = createConnection(true)) {
             stmt = anotherConn.prepareStatement(SQL_PART + " where f1 is not distinct from ?");
             stmt.setObject(1, new TestObjectField(100, "AAAA"));
@@ -255,12 +255,16 @@ public class JdbcThinPreparedStatementSelfTest extends JdbcThinAbstractSelfTest 
             int cnt = 0;
             ResultSet rs = stmt.executeQuery();
             while (rs.next()) {
-                if (cnt == 0)
-                    assert rs.getObject("f1") instanceof BinaryObject;
+                if (cnt == 0) {
+                    Assert.assertEquals("Result's id mismatch", 1, rs.getInt("id"));
+                    Assert.assertTrue(rs.getObject("f1") instanceof BinaryObject);
+                    Assert.assertEquals("Result's value mismatch", Integer.valueOf(100),
+                        rs.getObject("f1", BinaryObject.class).field("a"));
+                }
 
                 cnt++;
             }
-            assert cnt == 1;
+            Assert.assertEquals("There should be exactly 1 result", 1, cnt);
         }
     }
 
@@ -277,12 +281,17 @@ public class JdbcThinPreparedStatementSelfTest extends JdbcThinAbstractSelfTest 
         int cnt = 0;
         ResultSet rs = stmt.executeQuery();
         while (rs.next()) {
-            if (cnt == 0)
-                assert rs.getInt("id") == 1;
+            if (cnt == 0) {
+                Assert.assertEquals("Result's id mismatch", 1, rs.getInt("id"));
+                Assert.assertTrue("Result's value type mismatch",
+                    rs.getObject("f1") instanceof TestObjectField);
+                Assert.assertEquals("Result's value mismatch", 100,
+                    rs.getObject("f1", TestObjectField.class).a);
+            }
 
             cnt++;
         }
-        assert cnt == 1;
+        Assert.assertEquals("There should be exactly 1 result", 1, cnt);
 
         stmt.setNull(1, Types.JAVA_OBJECT);
         stmt.execute();
@@ -290,12 +299,14 @@ public class JdbcThinPreparedStatementSelfTest extends JdbcThinAbstractSelfTest 
         cnt = 0;
         rs = stmt.getResultSet();
         while (rs.next()) {
-            if (cnt == 0)
-                assert rs.getInt("id") == 2;
+            if (cnt == 0) {
+                Assert.assertEquals("Result's id mismatch", 2, rs.getInt("id"));
+                Assert.assertNull("Result's value should be null", rs.getObject("f1"));
+            }
 
             cnt++;
         }
-        assert cnt == 1;
+        Assert.assertEquals("There should be exactly 1 result", 1, cnt);
     }
 
     /**

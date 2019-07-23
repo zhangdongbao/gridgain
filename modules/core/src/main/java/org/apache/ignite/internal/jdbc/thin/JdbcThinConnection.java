@@ -266,7 +266,7 @@ public class JdbcThinConnection implements Connection {
 
         this.metaHnd = new JdbcBinaryMetadataHandler();
         this.marshCtx = new JdbcMarshallerContext();
-        this.ctx = createBinaryCtx();
+        this.ctx = createBinaryCtx(metaHnd, marshCtx);
 
         holdability = HOLD_CURSORS_OVER_COMMIT;
         autoCommit = true;
@@ -292,16 +292,15 @@ public class JdbcThinConnection implements Connection {
     }
 
     /** Create new binary context. */
-    private BinaryContext createBinaryCtx() {
-        IgniteConfiguration igniteCfg = new IgniteConfiguration();
-        igniteCfg.setBinaryConfiguration(new BinaryConfiguration());
-        igniteCfg.getBinaryConfiguration().setCompactFooter(false);
-
+    private BinaryContext createBinaryCtx(JdbcBinaryMetadataHandler metaHnd, JdbcMarshallerContext marshCtx) {
         BinaryMarshaller marsh = new BinaryMarshaller();
         marsh.setContext(marshCtx);
 
-        BinaryContext ctx = new BinaryContext(metaHnd, igniteCfg, new NullLogger());
-        ctx.configure(marsh, igniteCfg);
+        BinaryConfiguration binCfg = new BinaryConfiguration();
+        binCfg.setCompactFooter(true);
+        
+        BinaryContext ctx = new BinaryContext(metaHnd, new IgniteConfiguration(), new NullLogger());
+        ctx.configure(marsh, binCfg);
         ctx.registerUserTypesSchema();
         return ctx;
     }
@@ -955,112 +954,99 @@ public class JdbcThinConnection implements Connection {
 
         RequestTimeoutTask reqTimeoutTask = null;
 
-        synchronized (mux) {
-            Thread curr = Thread.currentThread();
-            if (ownThread != null && ownThread != curr) {
-                throw new SQLException("Concurrent access to JDBC connection is not allowed"
-                    + " [ownThread=" + ownThread.getName()
-                    + ", curThread=" + curr.getName(), CONNECTION_FAILURE);
-            }
+        acquireMutex();
 
-            ownThread = curr;
-        }
         try {
-            try {
-                int retryAttemptsLeft = 1;
+            int retryAttemptsLeft = 1;
 
-                Exception lastE = null;
+            Exception lastE = null;
 
-                while (retryAttemptsLeft > 0) {
-                    JdbcThinTcpIo cliIo = null;
+            while (retryAttemptsLeft > 0) {
+                JdbcThinTcpIo cliIo = null;
 
-                    ensureConnected();
+                ensureConnected();
 
+                try {
+                    cliIo = (stickyIo == null || !stickyIo.connected()) ? cliIo(calculateNodeIds(req)) : stickyIo;
+
+                    if (stmt != null && stmt.requestTimeout() != NO_TIMEOUT) {
+                        reqTimeoutTask = new RequestTimeoutTask(
+                            req instanceof JdbcBulkLoadBatchRequest ? stmt.currentRequestId() : req.requestId(),
+                            cliIo,
+                            stmt.requestTimeout());
+
+                        qryTimeoutScheduledFut = maintenanceExecutor.scheduleAtFixedRate(reqTimeoutTask, 0,
+                            REQUEST_TIMEOUT_PERIOD, TimeUnit.MILLISECONDS);
+                    }
+
+                    JdbcQueryExecuteRequest qryReq = null;
+
+                    if (req instanceof JdbcQueryExecuteRequest)
+                        qryReq = (JdbcQueryExecuteRequest)req;
+
+                    boolean keepBinary = GridBinaryMarshaller.KEEP_BINARIES.get();
+                    JdbcResponse res;
                     try {
-                        cliIo = (stickyIo == null || !stickyIo.connected()) ? cliIo(calculateNodeIds(req)) : stickyIo;
-
-                        if (stmt != null && stmt.requestTimeout() != NO_TIMEOUT) {
-                            reqTimeoutTask = new RequestTimeoutTask(
-                                req instanceof JdbcBulkLoadBatchRequest ? stmt.currentRequestId() : req.requestId(),
-                                cliIo,
-                                stmt.requestTimeout());
-
-                            qryTimeoutScheduledFut = maintenanceExecutor.scheduleAtFixedRate(reqTimeoutTask, 0,
-                                REQUEST_TIMEOUT_PERIOD, TimeUnit.MILLISECONDS);
-                        }
-
-                        JdbcQueryExecuteRequest qryReq = null;
-
-                        if (req instanceof JdbcQueryExecuteRequest)
-                            qryReq = (JdbcQueryExecuteRequest)req;
-
-                        boolean keepBinaries = GridBinaryMarshaller.KEEP_BINARIES.get();
-                        JdbcResponse res;
-                        try {
-                            GridBinaryMarshaller.KEEP_BINARIES.set(connProps.isKeepBinaries());
-                            res = cliIo.sendRequest(req, stmt);
-                        }
-                        finally {
-                            GridBinaryMarshaller.KEEP_BINARIES.set(keepBinaries);
-                        }
-
-                        txIo = res.activeTransaction() ? cliIo : null;
-
-                        if (res.status() == IgniteQueryErrorCode.QUERY_CANCELED && stmt != null &&
-                            stmt.requestTimeout() != NO_TIMEOUT && reqTimeoutTask != null &&
-                            reqTimeoutTask.expired.get()) {
-
-                            throw new SQLTimeoutException(QueryCancelledException.ERR_MSG, SqlStateCode.QUERY_CANCELLED,
-                                IgniteQueryErrorCode.QUERY_CANCELED);
-                        }
-                        else if (res.status() != ClientListenerResponse.STATUS_SUCCESS)
-                            throw new SQLException(res.error(), IgniteQueryErrorCode.codeToSqlState(res.status()),
-                                res.status());
-
-                        updateAffinityCache(qryReq, res);
-
-                        return new JdbcResultWithIo(res.response(), cliIo);
+                        GridBinaryMarshaller.KEEP_BINARIES.set(connProps.isKeepBinary());
+                        res = cliIo.sendRequest(req, stmt);
                     }
-                    catch (SQLException e) {
-                        if (LOG.isLoggable(Level.FINE))
-                            LOG.log(Level.FINE, "Exception during sending an sql request.", e);
-
-                        throw e;
+                    finally {
+                        GridBinaryMarshaller.KEEP_BINARIES.set(keepBinary);
                     }
-                    catch (Exception e) {
-                        if (LOG.isLoggable(Level.FINE))
-                            LOG.log(Level.FINE, "Exception during sending an sql request.", e);
 
-                        // We reuse the same connection when deals with binary objects to synchronize the binary schema,
-                        // so if any error occurred during synchronization, we close the underlying IO when handling problem
-                        // for the first time and should skip it during next processing
-                        if (cliIo != null && cliIo.connected())
-                            onDisconnect(cliIo);
+                    txIo = res.activeTransaction() ? cliIo : null;
 
-                        if (e instanceof SocketTimeoutException)
-                            throw new SQLException("Connection timed out.", CONNECTION_FAILURE, e);
-                        else {
-                            if (lastE == null) {
-                                retryAttemptsLeft = calculateRetryAttemptsCount(stickyIo, req);
-                                lastE = e;
-                            }
-                            else
-                                retryAttemptsLeft--;
+                    if (res.status() == IgniteQueryErrorCode.QUERY_CANCELED && stmt != null &&
+                        stmt.requestTimeout() != NO_TIMEOUT && reqTimeoutTask != null &&
+                        reqTimeoutTask.expired.get()) {
+
+                        throw new SQLTimeoutException(QueryCancelledException.ERR_MSG, SqlStateCode.QUERY_CANCELLED,
+                            IgniteQueryErrorCode.QUERY_CANCELED);
+                    }
+                    else if (res.status() != ClientListenerResponse.STATUS_SUCCESS)
+                        throw new SQLException(res.error(), IgniteQueryErrorCode.codeToSqlState(res.status()),
+                            res.status());
+
+                    updateAffinityCache(qryReq, res);
+
+                    return new JdbcResultWithIo(res.response(), cliIo);
+                }
+                catch (SQLException e) {
+                    if (LOG.isLoggable(Level.FINE))
+                        LOG.log(Level.FINE, "Exception during sending an sql request.", e);
+
+                    throw e;
+                }
+                catch (Exception e) {
+                    if (LOG.isLoggable(Level.FINE))
+                        LOG.log(Level.FINE, "Exception during sending an sql request.", e);
+
+                    // We reuse the same connection when deals with binary objects to synchronize the binary schema,
+                    // so if any error occurred during synchronization, we close the underlying IO when handling problem
+                    // for the first time and should skip it during next processing
+                    if (cliIo != null && cliIo.connected())
+                        onDisconnect(cliIo);
+
+                    if (e instanceof SocketTimeoutException)
+                        throw new SQLException("Connection timed out.", CONNECTION_FAILURE, e);
+                    else {
+                        if (lastE == null) {
+                            retryAttemptsLeft = calculateRetryAttemptsCount(stickyIo, req);
+                            lastE = e;
                         }
+                        else
+                            retryAttemptsLeft--;
                     }
                 }
+            }
 
-                throw new SQLException("Failed to communicate with Ignite cluster.", CONNECTION_FAILURE, lastE);
-            }
-            finally {
-                if (stmt != null && stmt.requestTimeout() != NO_TIMEOUT && reqTimeoutTask != null)
-                    qryTimeoutScheduledFut.cancel(false);
-            }
+            throw new SQLException("Failed to communicate with Ignite cluster.", CONNECTION_FAILURE, lastE);
         }
         finally {
-            synchronized (mux) {
-                ownThread = null;
-            }
+            if (stmt != null && stmt.requestTimeout() != NO_TIMEOUT && reqTimeoutTask != null)
+                qryTimeoutScheduledFut.cancel(false);
+
+            releaseMutex();
         }
     }
 
@@ -1229,16 +1215,7 @@ public class JdbcThinConnection implements Connection {
         throws SQLException {
         ensureConnected();
 
-        synchronized (mux) {
-            Thread curr = Thread.currentThread();
-            if (ownThread != null && ownThread != curr) {
-                throw new SQLException("Concurrent access to JDBC connection is not allowed"
-                    + " [ownThread=" + ownThread.getName()
-                    + ", curThread=" + curr.getName(), CONNECTION_FAILURE);
-            }
-
-            ownThread = curr;
-        }
+        acquireMutex();
 
         try {
             stickyIO.sendRequestNoWaitResponse(req);
@@ -1256,9 +1233,68 @@ public class JdbcThinConnection implements Connection {
                     CONNECTION_FAILURE, e);
         }
         finally {
-            synchronized (mux) {
-                ownThread = null;
+            releaseMutex();
+        }
+    }
+
+    /**
+     * Acquire mutex. Allows subsequent acquire by the same thread.
+     * <p>
+     * How to use:
+     * <pre>
+     *     acquireMutex();
+     *
+     *     try {
+     *         // do some work here
+     *     }
+     *     finally {
+     *         releaseMutex();
+     *     }
+     *
+     * </pre>
+     *
+     * @throws SQLException If mutex already acquired by another thread.
+     * @see JdbcThinConnection#releaseMutex()
+     */
+    private void acquireMutex() throws SQLException {
+        synchronized (mux) {
+            Thread curr = Thread.currentThread();
+            if (ownThread != null && ownThread != curr) {
+                throw new SQLException("Concurrent access to JDBC connection is not allowed"
+                    + " [ownThread=" + ownThread.getName()
+                    + ", curThread=" + curr.getName(), CONNECTION_FAILURE);
             }
+
+            ownThread = curr;
+        }
+    }
+
+    /**
+     * Release mutex. Does nothing if nobody own the mutex.
+     * <p>
+     * How to use:
+     * <pre>
+     *     acquireMutex();
+     *
+     *     try {
+     *         // do some work here
+     *     }
+     *     finally {
+     *         releaseMutex();
+     *     }
+     *
+     * </pre>
+     *
+     * @throws IllegalStateException If mutex is owned by another thread.
+     * @see JdbcThinConnection#acquireMutex()
+     */
+    private void releaseMutex() {
+        synchronized (mux) {
+            Thread curr = Thread.currentThread();
+            if (ownThread != null && ownThread != curr)
+                throw new IllegalStateException("Mutex is owned by another thread");
+
+            ownThread = null;
         }
     }
 
@@ -1515,8 +1551,10 @@ public class JdbcThinConnection implements Connection {
                         marshCtx.handleResult((JdbcBinaryTypeNameGetResult)resp.response());
 
                     else if (resp.response() instanceof JdbcUpdateBinarySchemaResult) {
-                        if (!marshCtx.handleResult((JdbcUpdateBinarySchemaResult)resp.response()))
-                            metaHnd.handleResult((JdbcUpdateBinarySchemaResult)resp.response());
+                        JdbcUpdateBinarySchemaResult binarySchemaRes = (JdbcUpdateBinarySchemaResult)resp.response();
+                        if (!marshCtx.handleResult(binarySchemaRes) && !metaHnd.handleResult(binarySchemaRes))
+                            LOG.log(Level.WARNING, "Neither marshaller context nor metadata handler" +
+                                " wait for update binary schema result (req=" + binarySchemaRes + ")");
                     }
                     else if (resp.status() != ClientListenerResponse.STATUS_SUCCESS)
                         err = new SQLException(resp.error(), IgniteQueryErrorCode.codeToSqlState(resp.status()));
@@ -1535,6 +1573,15 @@ public class JdbcThinConnection implements Connection {
      */
     boolean isQueryCancellationSupported() {
         return affinityAwareness || singleIo.isQueryCancellationSupported();
+    }
+
+    /**
+     * Whether custom objects are supported or not.
+     *
+     * @return True if custom objects are supported, false otherwise.
+     */
+    boolean isCustomObjectSupported() {
+        return singleIo.isCustomObjectSupported();
     }
 
     /**
@@ -2083,7 +2130,7 @@ public class JdbcThinConnection implements Connection {
      */
     private class JdbcMarshallerContext extends BlockingJdbcChannel implements MarshallerContext {
         /** Type ID -> class name map. */
-        private Map<Integer, String> cache = new ConcurrentHashMap<>();
+        private final Map<Integer, String> cache = new ConcurrentHashMap<>();
 
         /** {@inheritDoc} */
         @Override public boolean registerClassName(
@@ -2092,7 +2139,6 @@ public class JdbcThinConnection implements Connection {
             String clsName,
             boolean failIfUnregistered
         ) throws IgniteCheckedException {
-
             assert platformId == MarshallerPlatformIds.JAVA_ID
                 : String.format("Only Java platform is supported [expPlatformId=%d, actualPlatformId=%d].", MarshallerPlatformIds.JAVA_ID, platformId);
 
@@ -2122,12 +2168,7 @@ public class JdbcThinConnection implements Connection {
 
         /** {@inheritDoc} */
         @Override public boolean registerClassNameLocally(byte platformId, int typeId, String clsName) {
-
-            assert platformId == MarshallerPlatformIds.JAVA_ID
-                : String.format("Only Java platform is supported [expPlatformId=%d, actualPlatformId=%d].", MarshallerPlatformIds.JAVA_ID, platformId);
-
-            cache.put(typeId, clsName);
-            return true;
+            throw new UnsupportedOperationException("registerClassNameLocally not supported by " + this.getClass().getSimpleName());
         }
 
         /** {@inheritDoc} */
@@ -2138,9 +2179,7 @@ public class JdbcThinConnection implements Connection {
         }
 
         /** {@inheritDoc} */
-        @Override public String getClassName(byte platformId,
-            int typeId) throws ClassNotFoundException, IgniteCheckedException {
-
+        @Override public String getClassName(byte platformId, int typeId) throws ClassNotFoundException, IgniteCheckedException {
             assert platformId == MarshallerPlatformIds.JAVA_ID
                 : String.format("Only Java platform is supported [expPlatformId=%d, actualPlatformId=%d].", MarshallerPlatformIds.JAVA_ID, platformId);
 
@@ -2205,15 +2244,12 @@ public class JdbcThinConnection implements Connection {
         private final BinaryMetadataHandler cache = BinaryCachingMetadataHandler.create();
 
         /** {@inheritDoc} */
-        @Override public void addMeta(int typeId, BinaryType meta,
-            boolean failIfUnregistered) throws BinaryObjectException {
-            if (cache.metadata(typeId) == null) {
-                try {
-                    doRequest(new JdbcBinaryTypePutRequest(((BinaryTypeImpl)meta).metadata()));
-                }
-                catch (ExecutionException | InterruptedException | ClientException | SQLException e) {
-                    throw new BinaryObjectException(e);
-                }
+        @Override public void addMeta(int typeId, BinaryType meta, boolean failIfUnregistered) throws BinaryObjectException {
+            try {
+                doRequest(new JdbcBinaryTypePutRequest(((BinaryTypeImpl)meta).metadata()));
+            }
+            catch (ExecutionException | InterruptedException | ClientException | SQLException e) {
+                throw new BinaryObjectException(e);
             }
 
             cache.addMeta(typeId, meta, failIfUnregistered); // merge
@@ -2222,13 +2258,8 @@ public class JdbcThinConnection implements Connection {
         /** {@inheritDoc} */
         @Override public BinaryType metadata(int typeId) throws BinaryObjectException {
             BinaryType meta = cache.metadata(typeId);
-            if (meta == null) {
-                BinaryMetadata meta0 = metadata0(typeId);
-                if (meta0 != null) {
-                    meta = new BinaryTypeImpl(ctx, meta0);
-                    cache.addMeta(typeId, meta, false);
-                }
-            }
+            if (meta == null)
+                meta = getBinaryType(typeId);
 
             return meta;
         }
@@ -2237,16 +2268,35 @@ public class JdbcThinConnection implements Connection {
         @Override public BinaryMetadata metadata0(int typeId) throws BinaryObjectException {
             BinaryMetadata meta = cache.metadata0(typeId);
             if (meta == null) {
-                try {
-                    JdbcBinaryTypeGetResult res = doRequest(new JdbcBinaryTypeGetRequest(typeId));
-                    meta = res.meta();
-                }
-                catch (ExecutionException | InterruptedException | ClientException | SQLException e) {
-                    throw new BinaryObjectException(e);
-                }
+                BinaryTypeImpl binType = (BinaryTypeImpl)getBinaryType(typeId);
+                if (binType != null)
+                    meta = binType.metadata();
             }
 
             return meta;
+        }
+
+        /**
+         * Request binary type from grid.
+         *
+         * @param typeId Type ID.
+         * @return Binary type.
+         */
+        private @Nullable BinaryType getBinaryType(int typeId) throws BinaryObjectException {
+            BinaryType binType = null;
+            try {
+                JdbcBinaryTypeGetResult res = doRequest(new JdbcBinaryTypeGetRequest(typeId));
+                BinaryMetadata meta = res.meta();
+                if (meta != null) {
+                    binType = new BinaryTypeImpl(ctx, meta);
+                    cache.addMeta(typeId, binType, false);
+                }
+            }
+            catch (ExecutionException | InterruptedException | ClientException | SQLException e) {
+                throw new BinaryObjectException(e);
+            }
+
+            return binType;
         }
 
         /**
@@ -2311,13 +2361,13 @@ public class JdbcThinConnection implements Connection {
          * @param req Request.
          * @return Result for given request.
          */
-        <R extends JdbcResult> R doRequest(
-            JdbcRequest req) throws SQLException, InterruptedException, ExecutionException {
+        <R extends JdbcResult> R doRequest(JdbcRequest req) throws SQLException, InterruptedException, ExecutionException {
             R res;
             if (isStream()) {
                 CompletableFuture<JdbcResult> resFut = new CompletableFuture<>();
 
-                assert results.put(req.requestId(), resFut) == null : "Another request with the same id is waiting for result.";
+                CompletableFuture<JdbcResult> oldFut = results.put(req.requestId(), resFut);
+                assert oldFut == null : "Another request with the same id is waiting for result.";
 
                 sendRequestNotWaitResponse(req, streamState.streamingStickyIo);
 

@@ -85,8 +85,11 @@ public class JdbcThinTcpIo {
     /** Version 2.8.1. */
     private static final ClientListenerProtocolVersion VER_2_8_1 = ClientListenerProtocolVersion.create(2, 8, 1);
 
+    /** Version 2.9.0. */
+    private static final ClientListenerProtocolVersion VER_2_9_0 = ClientListenerProtocolVersion.create(2, 9, 0);
+
     /** Current version. */
-    private static final ClientListenerProtocolVersion CURRENT_VER = VER_2_8_1;
+    private static final ClientListenerProtocolVersion CURRENT_VER = VER_2_9_0;
 
     /** Initial output stream capacity for handshake. */
     private static final int HANDSHAKE_MSG_SIZE = 13;
@@ -616,6 +619,17 @@ public class JdbcThinTcpIo {
         assert srvProtoVer != null;
 
         return srvProtoVer.compareTo(VER_2_8_0) >= 0;
+    }
+
+    /**
+     * Whether custom objects are supported by the server or not.
+     *
+     * @return {@code true} if custom objects are supported, {@code false} otherwise.
+     */
+    boolean isCustomObjectSupported() {
+        assert srvProtoVer != null;
+
+        return srvProtoVer.compareTo(VER_2_9_0) >= 0;
     }
 
     /**

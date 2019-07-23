@@ -44,7 +44,7 @@ public class JdbcBinaryTypeNamePutRequest extends JdbcRequest {
     /**
      * @param typeId ID of binary type.
      * @param platformId ID of platform. See {@link MarshallerPlatformIds} for supported values.
-     * @param typeName name of the new binary type.
+     * @param typeName Name of the new binary type.
      */
     public JdbcBinaryTypeNamePutRequest(int typeId, byte platformId, String typeName) {
         super(BINARY_TYPE_NAME_PUT);
@@ -80,7 +80,6 @@ public class JdbcBinaryTypeNamePutRequest extends JdbcRequest {
     public String typeName() {
         return typeName;
     }
-
 
     /** {@inheritDoc} */
     @Override public void writeBinary(BinaryWriterExImpl writer, ClientListenerProtocolVersion ver) throws BinaryObjectException {

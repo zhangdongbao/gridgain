@@ -39,7 +39,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.ignite.IgniteCheckedException;
-import org.apache.ignite.configuration.BinaryConfiguration;
 import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.internal.IgniteInternalFuture;
@@ -2328,15 +2327,11 @@ public class JdbcThinConnectionSelfTest extends JdbcThinAbstractSelfTest {
      * @return New binary context.
      */
     private BinaryContext getBinaryContext() {
-        IgniteConfiguration igniteCfg = new IgniteConfiguration();
-        igniteCfg.setBinaryConfiguration(new BinaryConfiguration());
-        igniteCfg.getBinaryConfiguration().setCompactFooter(false);
-
         BinaryMarshaller marsh = new BinaryMarshaller();
         marsh.setContext(getFakeMarshallerCtx());
 
-        BinaryContext ctx = new BinaryContext(BinaryNoopMetadataHandler.instance(), igniteCfg, new NullLogger());
-        ctx.configure(marsh, igniteCfg);
+        BinaryContext ctx = new BinaryContext(BinaryNoopMetadataHandler.instance(), new IgniteConfiguration(), new NullLogger());
+        ctx.configure(marsh);
         ctx.registerUserTypesSchema();
         return ctx;
     }

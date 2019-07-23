@@ -1234,7 +1234,7 @@ public class JdbcRequestHandler implements ClientListenerRequestHandler {
      * @return Binary context.
      */
     private BinaryContext getBinaryCtx() {
-        return ((CacheObjectBinaryProcessorImpl) connCtx.kernalContext().cacheObjects()).binaryContext();
+        return ((CacheObjectBinaryProcessorImpl)connCtx.kernalContext().cacheObjects()).binaryContext();
     }
 
     /**

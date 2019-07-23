@@ -54,8 +54,7 @@ public class JdbcMessageParser implements ClientListenerMessageParser {
         ClientListenerProtocolVersion ver) {
         this.ctx = ctx;
         this.ver = ver;
-        if (ctx.cacheObjects() instanceof CacheObjectBinaryProcessorImpl)
-            this.binCtx = ((CacheObjectBinaryProcessorImpl)ctx.cacheObjects()).marshaller().context();
+        this.binCtx = ((CacheObjectBinaryProcessorImpl)ctx.cacheObjects()).marshaller().context();
     }
 
     /**

@@ -504,18 +504,18 @@ public interface ConnectionProperties {
     public void setConnectionTimeout(@Nullable Integer connTimeout) throws SQLException;
 
     /**
-     * Get keep binaries configuration flag.
+     * Get keep binary configuration flag.
      *
-     * @return Keep binaries configuration flag.
+     * @return Keep binary configuration flag.
      */
-    public boolean isKeepBinaries();
+    public boolean isKeepBinary();
 
     /**
      * Set to {@code true} to keep binary objects in binary form.
      *
      * <p> Defaults is {@code false}.
      **
-     * @param keepBinaries Whether to keep binary objects in binary form.
+     * @param keepBinary Whether to keep binary objects in binary form.
      */
-    public void setKeepBinaries(boolean keepBinaries);
+    public void setKeepBinary(boolean keepBinary);
 }
