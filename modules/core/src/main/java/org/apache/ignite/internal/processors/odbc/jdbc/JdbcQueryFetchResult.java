@@ -23,7 +23,7 @@ import org.apache.ignite.internal.binary.BinaryWriterExImpl;
 import org.apache.ignite.internal.processors.odbc.ClientListenerProtocolVersion;
 import org.apache.ignite.internal.util.typedef.internal.S;
 
-import static org.apache.ignite.internal.processors.odbc.jdbc.JdbcConnectionContext.VER_2_9_0;
+import static org.apache.ignite.internal.processors.odbc.jdbc.JdbcConnectionContext.VER_2_8_2;
 
 /**
  * JDBC query fetch result.
@@ -84,7 +84,7 @@ public class JdbcQueryFetchResult extends JdbcResult {
 
         last = reader.readBoolean();
 
-        boolean binObjAllowed = ver.compareTo(VER_2_9_0) >= 0;
+        boolean binObjAllowed = ver.compareTo(VER_2_8_2) >= 0;
         items = JdbcUtils.readItems(reader, binObjAllowed);
     }
 

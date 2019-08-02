@@ -2339,22 +2339,6 @@ public class JdbcThinConnection implements Connection {
         private Map<Long, CompletableFuture<JdbcResult>> results = new ConcurrentHashMap<>();
 
         /**
-         * Handles result for specified request ID.
-         *
-         * @param reqId Request id.
-         * @param res Result.
-         */
-        boolean handleResult(long reqId, JdbcResult res) {
-            boolean handled = false;
-            CompletableFuture<JdbcResult> fut = results.remove(reqId);
-            if (fut != null) {
-                fut.complete(res);
-                handled = true;
-            }
-            return handled;
-        }
-
-        /**
          * Do request in blocking style. It just call {@link JdbcThinConnection#sendRequest(JdbcRequest)} for
          * non-streaming mode and creates future and waits it completion when streaming is enabled.
          *
@@ -2376,6 +2360,22 @@ public class JdbcThinConnection implements Connection {
             else
                 res = sendRequest(req).response();
             return res;
+        }
+
+        /**
+         * Handles result for specified request ID.
+         *
+         * @param reqId Request id.
+         * @param res Result.
+         */
+        boolean handleResult(long reqId, JdbcResult res) {
+            boolean handled = false;
+            CompletableFuture<JdbcResult> fut = results.remove(reqId);
+            if (fut != null) {
+                fut.complete(res);
+                handled = true;
+            }
+            return handled;
         }
     }
 }

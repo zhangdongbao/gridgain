@@ -41,6 +41,7 @@ import org.apache.ignite.cache.query.annotations.QuerySqlField;
 import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.internal.util.typedef.internal.S;
+import org.junit.Assert;
 import org.junit.Test;
 
 import static org.apache.ignite.cache.CacheMode.PARTITIONED;
@@ -695,17 +696,18 @@ public class JdbcThinResultSetSelfTest extends JdbcThinAbstractSelfTest {
         TestObjectField exp = new TestObjectField(100, "AAAA");
         while (rs.next()) {
             if (cnt == 0) {
-                assert rs.getObject("f1").equals(exp);
-
-                assert rs.getObject(15).equals(exp);
-                assert rs.getObject(15, TestObjectField.class).equals(exp);
-                assert rs.getObject(15, Object.class).equals(exp);
+                Assert.assertEquals("Result by column label mismatch", exp, rs.getObject("f1"));
+                Assert.assertEquals("Result by column index mismatch", exp, rs.getObject(15));
+                Assert.assertEquals("Result by column index with general cast mismatch",
+                    exp, rs.getObject(15, Object.class));
+                Assert.assertEquals("Result by column index with precise cast mismatch",
+                    exp, rs.getObject(15, TestObjectField.class));
             }
 
             cnt++;
         }
 
-        assert cnt == 1;
+        Assert.assertEquals("Result count mismatch", 1, cnt);
     }
 
     /**
