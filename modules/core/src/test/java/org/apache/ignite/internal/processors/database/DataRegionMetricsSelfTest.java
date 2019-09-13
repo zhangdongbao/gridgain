@@ -19,8 +19,11 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.ignite.DataRegionMetrics;
 import org.apache.ignite.DataRegionMetricsProvider;
+import org.apache.ignite.cache.CacheMode;
+import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.configuration.DataRegionConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
+import org.apache.ignite.internal.IgniteEx;
 import org.apache.ignite.internal.processors.cache.persistence.DataRegionMetricsImpl;
 import org.apache.ignite.internal.processors.metric.GridMetricManager;
 import org.apache.ignite.internal.processors.metric.impl.HitRateMetric;
@@ -204,6 +207,34 @@ public class DataRegionMetricsSelfTest extends GridCommonAbstractTest {
 
         assertTrue("Expected rate drops count > 4 but actual is " + watcher.rateDropsCntr.get(),
             watcher.rateDropsCntr.get() > 4);
+    }
+
+    /** {@inheritDoc} */
+    @Override protected IgniteConfiguration getConfiguration(String igniteInstanceName) throws Exception {
+        CacheConfiguration<Object, Object> ccfg = new CacheConfiguration<>(DEFAULT_CACHE_NAME)
+            .setCacheMode(CacheMode.PARTITIONED)
+            .setBackups(1);
+
+        IgniteConfiguration cfg = super.getConfiguration(igniteInstanceName);
+        cfg.setCacheConfiguration(ccfg);
+        return cfg;
+    }
+
+    /**
+     * Test verifies that Page Size should be available even with disabled metrics
+     *
+     * @throws Exception if any happens during test
+     */
+    @Test
+    public void testPageSize() throws Exception {
+        IgniteEx ig = startGrid(0);
+        ig.cluster().active(true);
+
+        final DataRegionMetricsImpl regionMetrics = ig.cachex(DEFAULT_CACHE_NAME)
+            .context().group().dataRegion().memoryMetrics();
+        regionMetrics.disableMetrics();
+
+        assertTrue("Page Size should be available even with disabled metrics", regionMetrics.getPageSize() > 0);
     }
 
     /**
