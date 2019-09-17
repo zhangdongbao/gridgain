@@ -94,7 +94,7 @@ namespace Apache.Ignite.Core.Tests.Client.Cache
         /** <inheritdoc /> */
         public bool IsEnabled(LogLevel level)
         {
-            return level == LogLevel.Debug;
+            return true;
         }
 
         /// <summary>
