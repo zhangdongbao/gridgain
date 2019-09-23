@@ -62,9 +62,17 @@ namespace Apache.Ignite.Core.Impl.Client.Cache
             WithKeepBinary = 1 << 0,
 
             /// <summary>
+            /// With transactional binary flag.
+            /// Reserved for IEP-34 Thin client: transactions support.
+            /// </summary>
+            // ReSharper disable once ShiftExpressionRealShiftCountIsZero
+            // ReSharper disable once UnusedMember.Local
+            WithTransactional = 1 << 1,
+
+            /// <summary>
             /// With expiration policy.
             /// </summary>
-            WithExpiryPolicy = 1 << 1
+            WithExpiryPolicy = 1 << 2
         }
 
         /** Scan query filter platform code: .NET filter. */

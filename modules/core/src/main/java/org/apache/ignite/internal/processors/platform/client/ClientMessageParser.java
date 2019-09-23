@@ -67,6 +67,8 @@ import org.apache.ignite.internal.processors.platform.client.cache.ClientCacheRe
 import org.apache.ignite.internal.processors.platform.client.cache.ClientCacheScanQueryRequest;
 import org.apache.ignite.internal.processors.platform.client.cache.ClientCacheSqlFieldsQueryRequest;
 import org.apache.ignite.internal.processors.platform.client.cache.ClientCacheSqlQueryRequest;
+import org.apache.ignite.internal.processors.platform.client.tx.ClientTxEndRequest;
+import org.apache.ignite.internal.processors.platform.client.tx.ClientTxStartRequest;
 import org.apache.ignite.internal.processors.platform.client.cluster.ClientClusterChangeStateRequest;
 import org.apache.ignite.internal.processors.platform.client.cluster.ClientClusterIsActiveRequest;
 import org.apache.ignite.internal.processors.platform.client.cluster.ClientClusterWalChangeStateRequest;
@@ -209,18 +211,24 @@ public class ClientMessageParser implements ClientListenerMessageParser {
     /** */
     private static final short OP_BINARY_TYPE_PUT = 3003;
 
+    /** Start new transaction. */
+    private static final short OP_TX_START = 4000;
+
+    /** Commit transaction. */
+    private static final short OP_TX_END = 4001;
+
     /* Cluster operations. */
     /** */
-    private static final short OP_CLUSTER_IS_ACTIVE = 4000;
+    private static final short OP_CLUSTER_IS_ACTIVE = 5000;
 
     /** */
-    private static final short OP_CLUSTER_CHANGE_STATE = 4001;
+    private static final short OP_CLUSTER_CHANGE_STATE = 5001;
 
     /** */
-    private static final short OP_CLUSTER_CHANGE_WAL_STATE = 4002;
+    private static final short OP_CLUSTER_CHANGE_WAL_STATE = 5002;
 
     /** */
-    private static final short OP_CLUSTER_GET_WAL_STATE = 4003;
+    private static final short OP_CLUSTER_GET_WAL_STATE = 5003;
 
     /* Custom queries working through processors registry. */
     /** */
@@ -399,6 +407,12 @@ public class ClientMessageParser implements ClientListenerMessageParser {
 
             case OP_QUERY_SQL_FIELDS_CURSOR_GET_PAGE:
                 return new ClientCacheQueryNextPageRequest(reader);
+
+            case OP_TX_START:
+                return new ClientTxStartRequest(reader);
+
+            case OP_TX_END:
+                return new ClientTxEndRequest(reader);
 
             case OP_CLUSTER_IS_ACTIVE:
                 return new ClientClusterIsActiveRequest(reader);

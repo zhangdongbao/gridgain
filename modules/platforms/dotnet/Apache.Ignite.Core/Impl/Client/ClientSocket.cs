@@ -53,10 +53,15 @@ namespace Apache.Ignite.Core.Impl.Client
         public static readonly ClientProtocolVersion Ver140 = new ClientProtocolVersion(1, 4, 0);
 
         /** Version 1.5.0. */
+        // This version is reserved for IEP-34 Thin client: transactions support.
+        // ReSharper disable once UnusedMember.Global
         public static readonly ClientProtocolVersion Ver150 = new ClientProtocolVersion(1, 5, 0);
 
+        /** Version 1.6.0. */
+        public static readonly ClientProtocolVersion Ver160 = new ClientProtocolVersion(1, 6, 0);
+
         /** Current version. */
-        public static readonly ClientProtocolVersion CurrentProtocolVersion = Ver150;
+        public static readonly ClientProtocolVersion CurrentProtocolVersion = Ver160;
 
         /** Handshake opcode. */
         private const byte OpHandshake = 1;
