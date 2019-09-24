@@ -21,6 +21,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.atomic.LongAdder;
 import org.apache.ignite.internal.pagemem.PageUtils;
 import org.apache.ignite.internal.util.GridUnsafe;
 import org.h2.result.SortOrder;
@@ -57,6 +58,9 @@ public class InlineIndexHelper {
     /** PageContext for use in IO's */
     private static final ThreadLocal<List<InlineIndexHelper>> currentIndex = new ThreadLocal<>();
 
+    public static LongAdder objCmpTotal = new LongAdder();
+    public static LongAdder objCompared = new LongAdder();
+
     /** */
     public static final List<Integer> AVAILABLE_TYPES = Arrays.asList(
         Value.BOOLEAN,
@@ -73,8 +77,8 @@ public class InlineIndexHelper {
         Value.STRING,
         Value.STRING_FIXED,
         Value.STRING_IGNORECASE,
-        Value.BYTES,
-        Value.JAVA_OBJECT
+        Value.BYTES
+        , Value.JAVA_OBJECT
     );
 
     /** */
@@ -165,8 +169,11 @@ public class InlineIndexHelper {
             case Value.STRING_FIXED:
             case Value.STRING_IGNORECASE:
             case Value.BYTES:
-            case Value.JAVA_OBJECT:
                 this.size = -1;
+                break;
+
+            case Value.JAVA_OBJECT:
+                this.size = 4;
                 break;
 
             default:
@@ -243,8 +250,12 @@ public class InlineIndexHelper {
 
         if (size > 0)
             return size + 1;
-        else
-            return (PageUtils.getShort(pageAddr, off + 1) & 0x7FFF) + 3;
+        else {
+            if (type == Value.JAVA_OBJECT)
+                return (PageUtils.getShort(pageAddr, off + 5) & 0x7FFF) + 7;
+            else
+                return (PageUtils.getShort(pageAddr, off + 1) & 0x7FFF) + 3;
+        }
     }
 
     /**
@@ -318,8 +329,9 @@ public class InlineIndexHelper {
             case Value.BYTES:
                 return ValueBytes.get(readBytes(pageAddr, off));
 
-            case Value.JAVA_OBJECT:
-                return ValueJavaObject.getNoCopy(null, readBytes(pageAddr, off), null);
+            case Value.JAVA_OBJECT: {
+                return null;
+            }
 
             default:
                 throw new UnsupportedOperationException("no get operation for fast index type " + type);
@@ -350,8 +362,9 @@ public class InlineIndexHelper {
             case Value.STRING_FIXED:
             case Value.STRING_IGNORECASE:
             case Value.BYTES:
-            case Value.JAVA_OBJECT:
                 return (PageUtils.getShort(pageAddr, off + 1) & 0x8000) == 0;
+            case Value.JAVA_OBJECT:
+                return false;
 
             default:
                 throw new UnsupportedOperationException("no get operation for fast index type " + type);
@@ -440,9 +453,18 @@ public class InlineIndexHelper {
             case Value.UUID:
                 return compareAsUUID(pageAddr, off, v, type);
 
-            case Value.BYTES:
-            case Value.JAVA_OBJECT:
+            case Value.BYTES: {
                 return compareAsBytes(pageAddr, off, v);
+            }
+            case Value.JAVA_OBJECT: {
+                objCmpTotal.increment();
+                int res = compareAsObject(pageAddr, off, v);
+
+                if (res != CANT_BE_COMPARE)
+                    objCompared.increment();
+
+                return res;
+            }
         }
 
         return Integer.MIN_VALUE;
@@ -638,6 +660,22 @@ public class InlineIndexHelper {
             return fixSort(1, sortType());
 
         return CANT_BE_COMPARE;
+    }
+
+    /**
+     * @param pageAddr Page address.
+     * @param off Offset.
+     * @param v Value to compare.
+     * @return Compare result ({@code CANT_BE_COMPARE} means we can't compare).
+     */
+    private int compareAsObject(long pageAddr, int off, Value v) {
+        int h1 =  PageUtils.getInt(pageAddr, off + 1);
+        int h2 = v.hashCode();
+
+        if (h1 != h2)
+            return h1 > h2 ? 1 : -1;
+        else
+            return CANT_BE_COMPARE;
     }
 
     /**
@@ -840,6 +878,7 @@ public class InlineIndexHelper {
             case Value.DATE:
             case Value.TIMESTAMP:
             case Value.UUID:
+            case Value.JAVA_OBJECT:
                 return size + 1;
 
             case Value.STRING:
@@ -848,7 +887,6 @@ public class InlineIndexHelper {
                 return val.getString().getBytes(CHARSET).length + 3;
 
             case Value.BYTES:
-            case Value.JAVA_OBJECT:
                 return val.getBytes().length + 3;
 
             default:
@@ -866,7 +904,7 @@ public class InlineIndexHelper {
         if (size > 0 && size + 1 > maxSize)
             return 0;
 
-        if (size < 0 && maxSize < 4) {
+        if (size < 0 && (type == Value.JAVA_OBJECT && maxSize < 8 || maxSize < 4)) {
             // can't fit vartype field
             PageUtils.putByte(pageAddr, off, (byte)Value.UNKNOWN);
             return 0;
@@ -967,15 +1005,14 @@ public class InlineIndexHelper {
             }
 
             case Value.BYTES:
-            case Value.JAVA_OBJECT:
-             {
+            {
                 short size;
 
                 PageUtils.putByte(pageAddr, off, (byte)val.getType());
 
-                 byte[] bytes = val.getBytes();
+                byte[] bytes = val.getBytes();
 
-                 if (bytes.length + 3 <= maxSize) {
+                if (bytes.length + 3 <= maxSize) {
                     size = (short)bytes.length;
                     PageUtils.putShort(pageAddr, off + 1, size);
                     PageUtils.putBytes(pageAddr, off + 3, bytes);
@@ -990,6 +1027,13 @@ public class InlineIndexHelper {
                     return maxSize;
                 }
             }
+            case Value.JAVA_OBJECT:
+             {
+                 PageUtils.putByte(pageAddr, off, (byte)val.getType());
+                 PageUtils.putInt(pageAddr, off + 1, val.hashCode());
+
+                 return size + 1;
+             }
 
             default:
                 throw new UnsupportedOperationException("no get operation for fast index type " + type);

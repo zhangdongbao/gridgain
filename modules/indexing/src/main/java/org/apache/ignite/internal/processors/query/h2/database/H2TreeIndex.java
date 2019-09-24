@@ -69,7 +69,7 @@ import org.jetbrains.annotations.Nullable;
 @SuppressWarnings({"TypeMayBeWeakened", "unchecked"})
 public class H2TreeIndex extends GridH2IndexBase {
     /** Default value for {@code IGNITE_MAX_INDEX_PAYLOAD_SIZE} */
-    public static final int IGNITE_MAX_INDEX_PAYLOAD_SIZE_DEFAULT = 10;
+    public static final int IGNITE_MAX_INDEX_PAYLOAD_SIZE_DEFAULT = 16;
 
     /** */
     private final H2Tree[] segments;
