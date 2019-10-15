@@ -626,6 +626,13 @@ public class GridRestProcessor extends GridProcessorAdapter {
 
             U.interrupt(sesTimeoutCheckerThread);
 
+            try {
+                sesTimeoutCheckerThread.join();
+            }
+            catch (InterruptedException e) {
+                log.error("Failed to wait checker thread stop.", e);
+            }
+
             if (interrupted)
                 Thread.currentThread().interrupt();
 
