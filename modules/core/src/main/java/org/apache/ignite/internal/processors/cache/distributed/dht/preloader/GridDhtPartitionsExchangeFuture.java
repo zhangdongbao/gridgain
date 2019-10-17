@@ -72,6 +72,7 @@ import org.apache.ignite.internal.processors.cache.CacheAffinityChangeMessage;
 import org.apache.ignite.internal.processors.cache.CacheGroupContext;
 import org.apache.ignite.internal.processors.cache.CacheGroupDescriptor;
 import org.apache.ignite.internal.processors.cache.CachePartitionExchangeWorkerTask;
+import org.apache.ignite.internal.processors.cache.DummyDiscoveryCustomMessage;
 import org.apache.ignite.internal.processors.cache.DynamicCacheChangeBatch;
 import org.apache.ignite.internal.processors.cache.DynamicCacheChangeFailureMessage;
 import org.apache.ignite.internal.processors.cache.DynamicCacheChangeRequest;
@@ -2380,8 +2381,23 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
             for (PartitionsExchangeAware comp : cctx.exchange().exchangeAwareComponents())
                 comp.onDoneAfterTopologyUnlock(this);
 
-            if (firstDiscoEvt instanceof DiscoveryCustomEvent)
-                ((DiscoveryCustomEvent)firstDiscoEvt).customMessage(null);
+            if (firstDiscoEvt instanceof DiscoveryCustomEvent) {
+                DiscoveryCustomMessage customMessage = ((DiscoveryCustomEvent)firstDiscoEvt).customMessage();
+
+                if (customMessage instanceof DynamicCacheChangeBatch) {
+                    DynamicCacheChangeBatch msg = (DynamicCacheChangeBatch)customMessage;
+
+                    DummyDiscoveryCustomMessage dummyMsg = new DummyDiscoveryCustomMessage(msg.id());
+
+                    dummyMsg.putParameter("class", msg.getClass().getSimpleName());
+                    dummyMsg.putParameter("caches", msg.requests().stream()
+                        .mapToInt(changeRequest-> CU.cacheId(changeRequest.cacheName())).toArray());
+
+                    ((DiscoveryCustomEvent)firstDiscoEvt).customMessage(dummyMsg);
+                }
+                else
+                    ((DiscoveryCustomEvent)firstDiscoEvt).customMessage(null);
+            }
 
             if (err == null) {
                 if (exchCtx != null && (exchCtx.events().hasServerLeft() || exchCtx.events().hasServerJoin())) {

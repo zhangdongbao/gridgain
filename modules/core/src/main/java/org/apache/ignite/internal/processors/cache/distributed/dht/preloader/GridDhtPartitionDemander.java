@@ -251,8 +251,7 @@ public class GridDhtPartitionDemander {
      * reassing exchange occurs, see {@link RebalanceReassignExchangeTask} for details.
      */
     private boolean topologyChanged(RebalanceFuture fut) {
-        return !ctx.exchange().rebalanceTopologyVersion().equals(fut.topVer) ||
-            fut != rebalanceFut; // Same topology, but dummy exchange forced because of missing partitions.
+        return fut != rebalanceFut; // Same topology, but dummy exchange forced because of missing partitions.
     }
 
     /**
@@ -375,7 +374,7 @@ public class GridDhtPartitionDemander {
                     try {
                         printRebalanceStatistics();
 
-                        if (f.get() && nonNull(next))
+                        if (nonNull(next))
                             next.run();
                     }
                     catch (IgniteCheckedException e) {

@@ -28,14 +28,19 @@ import org.apache.ignite.failure.FailureContext;
 import org.apache.ignite.failure.FailureType;
 import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.internal.NodeStoppingException;
+import org.apache.ignite.internal.events.DiscoveryCustomEvent;
+import org.apache.ignite.internal.managers.discovery.DiscoveryCustomMessage;
 import org.apache.ignite.internal.processors.affinity.AffinityAssignment;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.cache.CacheGroupContext;
+import org.apache.ignite.internal.processors.cache.DummyDiscoveryCustomMessage;
+import org.apache.ignite.internal.processors.cache.DynamicCacheChangeBatch;
 import org.apache.ignite.internal.processors.cache.GridCacheContext;
 import org.apache.ignite.internal.processors.cache.GridCacheEntryInfo;
 import org.apache.ignite.internal.processors.cache.GridCachePreloaderAdapter;
 import org.apache.ignite.internal.processors.cache.KeyCacheObject;
 import org.apache.ignite.internal.processors.cache.distributed.dht.GridDhtFuture;
+import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionDemander.RebalanceFuture;
 import org.apache.ignite.internal.processors.cache.distributed.dht.topology.GridDhtPartitionTopology;
 import org.apache.ignite.internal.processors.cache.distributed.dht.atomic.GridNearAtomicAbstractUpdateRequest;
 import org.apache.ignite.internal.processors.cache.distributed.dht.topology.GridDhtLocalPartition;
@@ -45,12 +50,16 @@ import org.apache.ignite.internal.util.future.GridFinishedFuture;
 import org.apache.ignite.internal.util.future.GridFutureAdapter;
 import org.apache.ignite.internal.util.lang.GridPlainRunnable;
 import org.apache.ignite.internal.util.typedef.CI1;
+import org.apache.ignite.internal.util.typedef.internal.CU;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.lang.IgnitePredicate;
 import org.jetbrains.annotations.Nullable;
 
 import static org.apache.ignite.events.EventType.EVT_CACHE_REBALANCE_PART_DATA_LOST;
 import static org.apache.ignite.events.EventType.EVT_CACHE_REBALANCE_PART_UNLOADED;
+import static org.apache.ignite.events.EventType.EVT_NODE_FAILED;
+import static org.apache.ignite.events.EventType.EVT_NODE_JOINED;
+import static org.apache.ignite.events.EventType.EVT_NODE_LEFT;
 import static org.apache.ignite.internal.processors.cache.distributed.dht.topology.GridDhtPartitionState.EVICTED;
 import static org.apache.ignite.internal.processors.cache.distributed.dht.topology.GridDhtPartitionState.LOST;
 import static org.apache.ignite.internal.processors.cache.distributed.dht.topology.GridDhtPartitionState.MOVING;
@@ -160,10 +169,17 @@ public class GridDhtPreloader extends GridCachePreloaderAdapter {
     }
 
     /** {@inheritDoc} */
-    @Override public boolean rebalanceRequired(AffinityTopologyVersion rebTopVer,
-        GridDhtPartitionsExchangeFuture exchFut) {
-        if (ctx.kernalContext().clientNode() || rebTopVer.equals(AffinityTopologyVersion.NONE))
+    @Override public boolean rebalanceRequired(GridDhtPartitionsExchangeFuture exchFut) {
+        if (ctx.kernalContext().clientNode())
             return false; // No-op.
+
+        RebalanceFuture rebalanceFuture = (RebalanceFuture)rebalanceFuture();
+
+        if (rebalanceFuture.isInitial())
+            return true;
+
+        if (rebalanceFuture.isDone() && !rebalanceFuture.result())
+            return true; // Required, previous rebalance cancelled.
 
         if (exchFut.resetLostPartitionFor(grp.cacheOrGroupName()))
             return true;
@@ -171,10 +187,21 @@ public class GridDhtPreloader extends GridCachePreloaderAdapter {
         if (exchFut.localJoinExchange())
             return true; // Required, can have outdated updSeq partition counter if node reconnects.
 
+        if (isChangeingTopBltNode(exchFut))
+            return false;
+
+        if (isChangingTopFromNotAffNode(exchFut))
+            return false;
+
+        if (isOtherCacheEvent(exchFut))
+            return false;
+
         TransactionalDrProcessor txDrProc = ctx.kernalContext().txDr();
 
         if (txDrProc != null && txDrProc.shouldScheduleRebalance(exchFut))
             return true;
+
+        AffinityTopologyVersion rebTopVer = rebalanceFuture.topologyVersion();
 
         if (!grp.affinity().cachedVersions().contains(rebTopVer)) {
             assert rebTopVer.compareTo(grp.localStartVersion()) <= 0 :
@@ -184,15 +211,68 @@ public class GridDhtPreloader extends GridCachePreloaderAdapter {
             return true; // Required, since no history info available.
         }
 
-        final IgniteInternalFuture<Boolean> rebFut = rebalanceFuture();
-
-        if (rebFut.isDone() && !rebFut.result())
-            return true; // Required, previous rebalance cancelled.
-
         AffinityTopologyVersion lastAffChangeTopVer =
             ctx.exchange().lastAffinityChangedTopologyVersion(exchFut.topologyVersion());
 
         return lastAffChangeTopVer.after(rebTopVer);
+    }
+
+    /**
+     * @param exchFut Exchange future.
+     * @return True means method was invoke for  event of other cache, false otherwise.
+     */
+    private boolean isOtherCacheEvent(GridDhtPartitionsExchangeFuture exchFut) {
+        if (exchFut.firstEvent().type() != DiscoveryCustomEvent.EVT_DISCOVERY_CUSTOM_EVT)
+            return false;
+
+        DiscoveryCustomMessage customMessage = ((DiscoveryCustomEvent)exchFut.firstEvent()).customMessage();
+
+        if (customMessage instanceof DynamicCacheChangeBatch) {
+            return !((DynamicCacheChangeBatch)customMessage).requests().stream().filter((cacheReq) -> {
+                return grp.cacheIds().contains(CU.cacheId(cacheReq.cacheName()));
+            }).findAny().isPresent();
+        }
+
+        if (customMessage instanceof DummyDiscoveryCustomMessage) {
+            DummyDiscoveryCustomMessage dummyMsg = (DummyDiscoveryCustomMessage)customMessage;
+
+            if (!DynamicCacheChangeBatch.class.getSimpleName().equals(dummyMsg.getParameter("class")))
+                return false;
+
+            int[] cacheIds = (int[])dummyMsg.getParameter("caches");
+
+            if (cacheIds == null)
+                return false;
+
+            return !grp.cacheIds().stream().filter(id -> {
+                return U.containsIntArray(cacheIds, id);
+            }).findAny().isPresent();
+        }
+
+        return false;
+    }
+
+    /**
+     * @param exchFut Exchange future.
+     * @return True means non-baseline node is joining, false otherwise.
+     */
+    private boolean isChangeingTopBltNode(GridDhtPartitionsExchangeFuture exchFut) {
+        return (exchFut.firstEvent().type() == EVT_NODE_JOINED
+            || exchFut.firstEvent().type() == EVT_NODE_LEFT
+            || exchFut.firstEvent().type() == EVT_NODE_FAILED)
+            && CU.isPersistentCache(grp.config(), ctx.gridConfig().getDataStorageConfiguration())
+            && !CU.baselineNode(exchFut.firstEvent().eventNode(), ctx.kernalContext().state().clusterState());
+    }
+
+    /**
+     * @param exchFut Exchange future.
+     * @return True means non-affinity node is joining, false otherwise.
+     */
+    private boolean isChangingTopFromNotAffNode(GridDhtPartitionsExchangeFuture exchFut) {
+        return (exchFut.firstEvent().type() == EVT_NODE_JOINED
+            || exchFut.firstEvent().type() == EVT_NODE_LEFT
+            || exchFut.firstEvent().type() == EVT_NODE_FAILED)
+            && !CU.affinityNode(exchFut.firstEvent().eventNode(), grp.nodeFilter());
     }
 
     /** {@inheritDoc} */
