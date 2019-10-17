@@ -35,6 +35,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import javax.cache.Cache;
 import javax.cache.event.CacheEntryEvent;
@@ -319,6 +320,8 @@ public class GridServiceProcessor extends ServiceProcessorAdapter implements Ign
         startLatch.countDown();
 
         U.shutdownNow(GridServiceProcessor.class, depExe, log);
+
+        ((IgniteThreadFactory)((ThreadPoolExecutor)depExe).getThreadFactory()).resetHandler();
 
         if (!ctx.clientNode())
             ctx.event().removeDiscoveryEventListener(topLsnr);

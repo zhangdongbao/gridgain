@@ -41,7 +41,7 @@ public class IgniteThreadFactory implements ThreadFactory {
     private final byte plc;
 
     /** Exception handler. */
-    private final UncaughtExceptionHandler eHnd;
+    private volatile UncaughtExceptionHandler eHnd;
 
     /**
      * Constructs new thread factory for given grid. All threads will belong
@@ -80,6 +80,13 @@ public class IgniteThreadFactory implements ThreadFactory {
         this.threadName = threadName;
         this.plc = plc;
         this.eHnd = eHnd;
+    }
+
+    /**
+     *
+     */
+    public void resetHandler() {
+        eHnd = null;
     }
 
     /** {@inheritDoc} */
