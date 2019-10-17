@@ -2328,11 +2328,15 @@ public class JdbcThinConnectionSelfTest extends JdbcThinAbstractSelfTest {
      */
     private BinaryContext getBinaryContext() {
         BinaryMarshaller marsh = new BinaryMarshaller();
+
         marsh.setContext(getFakeMarshallerCtx());
 
-        BinaryContext ctx = new BinaryContext(BinaryNoopMetadataHandler.instance(), new IgniteConfiguration(), new NullLogger());
+        BinaryContext ctx = new BinaryContext(BinaryNoopMetadataHandler.instance(),
+            new IgniteConfiguration(), new NullLogger());
+
         ctx.configure(marsh);
         ctx.registerUserTypesSchema();
+
         return ctx;
     }
 }

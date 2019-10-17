@@ -73,6 +73,7 @@ public class JdbcBinaryTypeGetResult extends JdbcResult {
         super.writeBinary(writer, ver);
 
         writer.writeLong(reqId);
+
         try {
             meta.writeTo(writer);
         }
@@ -87,6 +88,7 @@ public class JdbcBinaryTypeGetResult extends JdbcResult {
 
         reqId = reader.readLong();
         meta = new BinaryMetadata();
+
         try {
             meta.readFrom(reader);
         }

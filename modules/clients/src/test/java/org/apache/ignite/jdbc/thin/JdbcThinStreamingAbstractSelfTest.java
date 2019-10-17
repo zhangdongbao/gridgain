@@ -364,7 +364,9 @@ public abstract class JdbcThinStreamingAbstractSelfTest extends JdbcStreamingSel
 
         try (Connection conn = createStreamedConnection(false, 10000)) {
             assertStreamingState(true);
+
             int testInd = 1 + new Random().nextInt(1000);
+
             try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO t2 values (?, ?)")) {
                 for (int i = 1; i <= 1000; i++) {
                     stmt.setInt(1, i);
@@ -375,7 +377,9 @@ public abstract class JdbcThinStreamingAbstractSelfTest extends JdbcStreamingSel
             }
 
             assertCacheEmpty();
+
             execute(conn, "set streaming 0");
+
             assertStreamingState(false);
 
             U.sleep(500);
@@ -384,8 +388,11 @@ public abstract class JdbcThinStreamingAbstractSelfTest extends JdbcStreamingSel
                 stmt.setInt(1, testInd);
 
                 ResultSet rs = stmt.executeQuery();
+
                 Assert.assertTrue("Result should not be empty", rs.next());
+
                 Foo foo = rs.getObject(1, Foo.class);
+
                 Assert.assertEquals("Stored value not equals the expected one", testInd, foo.val);
             }
         }

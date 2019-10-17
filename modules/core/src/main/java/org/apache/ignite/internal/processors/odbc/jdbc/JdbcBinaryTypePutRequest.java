@@ -71,6 +71,7 @@ public class JdbcBinaryTypePutRequest extends JdbcRequest {
         super.readBinary(reader, ver);
 
         meta = new BinaryMetadata();
+
         try {
             meta.readFrom(reader);
         }

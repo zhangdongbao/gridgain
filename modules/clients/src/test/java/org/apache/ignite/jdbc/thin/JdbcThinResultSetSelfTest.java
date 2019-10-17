@@ -694,12 +694,16 @@ public class JdbcThinResultSetSelfTest extends JdbcThinAbstractSelfTest {
         int cnt = 0;
 
         TestObjectField exp = new TestObjectField(100, "AAAA");
+
         while (rs.next()) {
             if (cnt == 0) {
                 Assert.assertEquals("Result by column label mismatch", exp, rs.getObject("f1"));
+
                 Assert.assertEquals("Result by column index mismatch", exp, rs.getObject(15));
+
                 Assert.assertEquals("Result by column index with general cast mismatch",
                     exp, rs.getObject(15, Object.class));
+
                 Assert.assertEquals("Result by column index with precise cast mismatch",
                     exp, rs.getObject(15, TestObjectField.class));
             }

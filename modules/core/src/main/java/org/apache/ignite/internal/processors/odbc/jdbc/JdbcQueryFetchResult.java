@@ -85,6 +85,7 @@ public class JdbcQueryFetchResult extends JdbcResult {
         last = reader.readBoolean();
 
         boolean binObjAllowed = ver.compareTo(VER_2_8_2) >= 0;
+
         items = JdbcUtils.readItems(reader, binObjAllowed);
     }
 

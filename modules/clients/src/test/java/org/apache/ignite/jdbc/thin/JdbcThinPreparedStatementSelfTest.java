@@ -73,7 +73,7 @@ public class JdbcThinPreparedStatementSelfTest extends JdbcThinAbstractSelfTest 
     /** SQL query. */
     private static final String SQL_PART =
         "select id, boolVal, byteVal, shortVal, intVal, longVal, floatVal, " +
-            "doubleVal, bigVal, strVal, arrVal, dateVal, timeVal, tsVal, f1 " +
+            "doubleVal, bigVal, strVal, arrVal, dateVal, timeVal, tsVal, objVal " +
             "from TestObject ";
 
     /** Connection. */
@@ -126,7 +126,7 @@ public class JdbcThinPreparedStatementSelfTest extends JdbcThinAbstractSelfTest 
         o.timeVal = new Time(1);
         o.tsVal = new Timestamp(1);
         o.urlVal = new URL("http://abc.com/");
-        o.f1 = new TestObjectField(100, "AAAA");
+        o.objVal = new TestObjectField(100, "AAAA");
 
         cache.put(1, o);
         cache.put(2, new TestObject(2));
@@ -163,8 +163,11 @@ public class JdbcThinPreparedStatementSelfTest extends JdbcThinAbstractSelfTest 
      */
     private Connection createConnection(boolean keepBinary) throws SQLException {
         String url = keepBinary ? URL + "?keepBinary=true" : URL;
+
         Connection conn = DriverManager.getConnection(url);
+
         conn.setSchema('"' + DEFAULT_CACHE_NAME + '"');
+
         return conn;
     }
 
@@ -213,28 +216,34 @@ public class JdbcThinPreparedStatementSelfTest extends JdbcThinAbstractSelfTest 
     public void testObjectDifferentConnections() throws SQLException {
         final TestObjectField exp = new TestObjectField(42, "BBBB");
 
-        conn.createStatement().execute("CREATE TABLE test(id INT PRIMARY KEY, f1 OTHER)");
+        conn.createStatement().execute("CREATE TABLE test(id INT PRIMARY KEY, objVal OTHER)");
 
-        stmt = conn.prepareStatement("INSERT INTO test(id, f1) VALUES (?, ?)");
+        stmt = conn.prepareStatement("INSERT INTO test(id, objVal) VALUES (?, ?)");
+
         stmt.setInt(1, exp.a);
         stmt.setObject(2, exp);
+
         stmt.execute();
 
         try (Connection anotherConn = createConnection(false)) {
-            try (PreparedStatement stmt = anotherConn.prepareStatement("SELECT id, f1 FROM test WHERE id = ?")) {
+            try (PreparedStatement stmt = anotherConn.prepareStatement("SELECT id, objVal FROM test WHERE id = ?")) {
                 stmt.setInt(1, exp.a);
 
                 int cnt = 0;
+
                 ResultSet rs = stmt.executeQuery();
+
                 while (rs.next()) {
                     if (cnt == 0) {
                         Assert.assertTrue("Result's value type mismatch",
-                            rs.getObject("f1") instanceof TestObjectField);
-                        Assert.assertEquals("Result's value mismatch", exp, rs.getObject("f1", TestObjectField.class));
+                            rs.getObject("objVal") instanceof TestObjectField);
+
+                        Assert.assertEquals("Result's value mismatch", exp, rs.getObject("objVal", TestObjectField.class));
                     }
 
                     cnt++;
                 }
+
                 Assert.assertEquals("There should be exactly 1 result", 1, cnt);
             }
         }
@@ -249,21 +258,27 @@ public class JdbcThinPreparedStatementSelfTest extends JdbcThinAbstractSelfTest 
     @Test
     public void testObjectConnectionWithKeepBinaryFlag() throws SQLException {
         try (Connection anotherConn = createConnection(true)) {
-            stmt = anotherConn.prepareStatement(SQL_PART + " where f1 is not distinct from ?");
+            stmt = anotherConn.prepareStatement(SQL_PART + " where objVal is not distinct from ?");
+
             stmt.setObject(1, new TestObjectField(100, "AAAA"));
 
             int cnt = 0;
+
             ResultSet rs = stmt.executeQuery();
+
             while (rs.next()) {
                 if (cnt == 0) {
                     Assert.assertEquals("Result's id mismatch", 1, rs.getInt("id"));
-                    Assert.assertTrue(rs.getObject("f1") instanceof BinaryObject);
+
+                    Assert.assertTrue(rs.getObject("objVal") instanceof BinaryObject);
+
                     Assert.assertEquals("Result's value mismatch", Integer.valueOf(100),
-                        rs.getObject("f1", BinaryObject.class).field("a"));
+                        rs.getObject("objVal", BinaryObject.class).field("a"));
                 }
 
                 cnt++;
             }
+
             Assert.assertEquals("There should be exactly 1 result", 1, cnt);
         }
     }
@@ -275,37 +290,48 @@ public class JdbcThinPreparedStatementSelfTest extends JdbcThinAbstractSelfTest 
      */
     @Test
     public void testObject() throws Exception {
-        stmt = conn.prepareStatement(SQL_PART + " where f1 is not distinct from ?");
+        stmt = conn.prepareStatement(SQL_PART + " where objVal is not distinct from ?");
+
         stmt.setObject(1, new TestObjectField(100, "AAAA"));
 
         int cnt = 0;
+
         ResultSet rs = stmt.executeQuery();
+
         while (rs.next()) {
             if (cnt == 0) {
                 Assert.assertEquals("Result's id mismatch", 1, rs.getInt("id"));
+
                 Assert.assertTrue("Result's value type mismatch",
-                    rs.getObject("f1") instanceof TestObjectField);
+                    rs.getObject("objVal") instanceof TestObjectField);
+
                 Assert.assertEquals("Result's value mismatch", 100,
-                    rs.getObject("f1", TestObjectField.class).a);
+                    rs.getObject("objVal", TestObjectField.class).a);
             }
 
             cnt++;
         }
+
         Assert.assertEquals("There should be exactly 1 result", 1, cnt);
 
         stmt.setNull(1, Types.JAVA_OBJECT);
+
         stmt.execute();
 
         cnt = 0;
+
         rs = stmt.getResultSet();
+
         while (rs.next()) {
             if (cnt == 0) {
                 Assert.assertEquals("Result's id mismatch", 2, rs.getInt("id"));
-                Assert.assertNull("Result's value should be null", rs.getObject("f1"));
+
+                Assert.assertNull("Result's value should be null", rs.getObject("objVal"));
             }
 
             cnt++;
         }
+
         Assert.assertEquals("There should be exactly 1 result", 1, cnt);
     }
 
@@ -1135,7 +1161,7 @@ public class JdbcThinPreparedStatementSelfTest extends JdbcThinAbstractSelfTest 
 
         /** */
         @QuerySqlField
-        private TestObjectField f1;
+        private TestObjectField objVal;
 
         /**
          * @param id ID.
@@ -1168,6 +1194,7 @@ public class JdbcThinPreparedStatementSelfTest extends JdbcThinAbstractSelfTest 
         /** {@inheritDoc} */
         @Override public boolean equals(Object o) {
             if (this == o) return true;
+
             if (o == null || getClass() != o.getClass()) return false;
 
             TestObjectField that = (TestObjectField)o;

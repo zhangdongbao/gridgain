@@ -264,10 +264,9 @@ public class JdbcThinConnection implements Connection {
     public JdbcThinConnection(ConnectionProperties connProps) throws SQLException {
         this.connProps = connProps;
 
-        this.metaHnd = new JdbcBinaryMetadataHandler();
-        this.marshCtx = new JdbcMarshallerContext();
-        this.ctx = createBinaryCtx(metaHnd, marshCtx);
-
+        metaHnd = new JdbcBinaryMetadataHandler();
+        marshCtx = new JdbcMarshallerContext();
+        ctx = createBinaryCtx(metaHnd, marshCtx);
         holdability = HOLD_CURSORS_OVER_COMMIT;
         autoCommit = true;
         txIsolation = Connection.TRANSACTION_NONE;
@@ -296,12 +295,14 @@ public class JdbcThinConnection implements Connection {
         BinaryMarshaller marsh = new BinaryMarshaller();
         marsh.setContext(marshCtx);
 
-        BinaryConfiguration binCfg = new BinaryConfiguration();
-        binCfg.setCompactFooter(true);
+        BinaryConfiguration binCfg = new BinaryConfiguration().setCompactFooter(true);
         
         BinaryContext ctx = new BinaryContext(metaHnd, new IgniteConfiguration(), new NullLogger());
+
         ctx.configure(marsh, binCfg);
+
         ctx.registerUserTypesSchema();
+
         return ctx;
     }
 
@@ -985,9 +986,11 @@ public class JdbcThinConnection implements Connection {
                         qryReq = (JdbcQueryExecuteRequest)req;
 
                     boolean keepBinary = GridBinaryMarshaller.KEEP_BINARIES.get();
+
                     JdbcResponse res;
                     try {
                         GridBinaryMarshaller.KEEP_BINARIES.set(connProps.isKeepBinary());
+
                         res = cliIo.sendRequest(req, stmt);
                     }
                     finally {
@@ -1259,6 +1262,7 @@ public class JdbcThinConnection implements Connection {
     private void acquireMutex() throws SQLException {
         synchronized (mux) {
             Thread curr = Thread.currentThread();
+
             if (ownThread != null && ownThread != curr) {
                 throw new SQLException("Concurrent access to JDBC connection is not allowed"
                     + " [ownThread=" + ownThread.getName()
@@ -1291,6 +1295,7 @@ public class JdbcThinConnection implements Connection {
     private void releaseMutex() {
         synchronized (mux) {
             Thread curr = Thread.currentThread();
+
             if (ownThread != null && ownThread != curr)
                 throw new IllegalStateException("Mutex is owned by another thread");
 
@@ -1552,6 +1557,7 @@ public class JdbcThinConnection implements Connection {
 
                     else if (resp.response() instanceof JdbcUpdateBinarySchemaResult) {
                         JdbcUpdateBinarySchemaResult binarySchemaRes = (JdbcUpdateBinarySchemaResult)resp.response();
+
                         if (!marshCtx.handleResult(binarySchemaRes) && !metaHnd.handleResult(binarySchemaRes))
                             LOG.log(Level.WARNING, "Neither marshaller context nor metadata handler" +
                                 " wait for update binary schema result (req=" + binarySchemaRes + ")");
@@ -1623,9 +1629,11 @@ public class JdbcThinConnection implements Connection {
     }
 
     /**
-     * Returns random tcpIo, based on random UUID, generated in a custom way with the help of {@code Random} instead of
-     * {@code SecureRandom}. It's valid, cause cryptographically strong pseudo random number generator is not required
-     * in this particular case. {@code Random} is much faster than {@code SecureRandom}.
+     * Returns random tcpIo, based on random UUID, generated in a custom way
+     * with the help of {@code Random} instead of {@code SecureRandom}. It's
+     * valid, cause cryptographically strong pseudo random number generator is
+     * not required in this particular case. {@code Random} is much faster
+     * than {@code SecureRandom}.
      *
      * @return random tcpIo
      */
@@ -1763,13 +1771,15 @@ public class JdbcThinConnection implements Connection {
     }
 
     /**
-     * Establishes a connection to ignite endpoint, trying all specified hosts and ports one by one.
+     * Establishes a connection to ignite endpoint, trying all specified hosts
+     * and ports one by one.
+     *
      * Stops as soon as all iosArr are established.
      *
      * @param baseEndpointVer Base endpoint version.
      * @return last connected endpoint version.
-     * @throws SQLException If failed to connect to at least one ignite endpoint, or if endpoints versions are less than
-     * base endpoint version.
+     * @throws SQLException If failed to connect to at least one ignite
+     * endpoint, or if endpoints versions are less than base endpoint version.
      */
     private IgniteProductVersion connectInBestEffortAffinityMode(
         IgniteProductVersion baseEndpointVer) throws SQLException {
@@ -2140,12 +2150,16 @@ public class JdbcThinConnection implements Connection {
             boolean failIfUnregistered
         ) throws IgniteCheckedException {
             assert platformId == MarshallerPlatformIds.JAVA_ID
-                : String.format("Only Java platform is supported [expPlatformId=%d, actualPlatformId=%d].", MarshallerPlatformIds.JAVA_ID, platformId);
+                : String.format("Only Java platform is supported [expPlatformId=%d, actualPlatformId=%d].",
+                MarshallerPlatformIds.JAVA_ID, platformId);
 
             boolean res = true;
+
             if (!cache.containsKey(typeId)) {
                 try {
-                    JdbcUpdateBinarySchemaResult updateRes = doRequest(new JdbcBinaryTypeNamePutRequest(typeId, platformId, clsName));
+                    JdbcUpdateBinarySchemaResult updateRes = doRequest(
+                        new JdbcBinaryTypeNamePutRequest(typeId, platformId, clsName));
+
                     res = updateRes.success();
                 }
                 catch (ExecutionException | InterruptedException | ClientException | SQLException e) {
@@ -2256,6 +2270,12 @@ public class JdbcThinConnection implements Connection {
         }
 
         /** {@inheritDoc} */
+        @Override public void addMetaLocally(int typeId, BinaryType meta,
+            boolean failIfUnregistered) throws BinaryObjectException {
+            throw new UnsupportedOperationException("Can't register metadata locally for thin client.");
+        }
+
+        /** {@inheritDoc} */
         @Override public BinaryType metadata(int typeId) throws BinaryObjectException {
             BinaryType meta = cache.metadata(typeId);
             if (meta == null)
@@ -2303,7 +2323,8 @@ public class JdbcThinConnection implements Connection {
          * Handle update binary schema result.
          *
          * @param res Result.
-         * @return {@code true} if handler was waiting for result with given request ID.
+         * @return {@code true} if handler was waiting for result with given
+         * request ID.
          */
         public boolean handleResult(JdbcUpdateBinarySchemaResult res) {
             return handleResult(res.reqId(), res);
@@ -2313,7 +2334,8 @@ public class JdbcThinConnection implements Connection {
          * Handle binary type schema result.
          *
          * @param res Result.
-         * @return {@code true} if handler was waiting for result with given request ID.
+         * @return {@code true} if handler was waiting for result with given
+         * request ID.
          */
         public boolean handleResult(JdbcBinaryTypeGetResult res) {
             return handleResult(res.reqId(), res);
@@ -2332,25 +2354,30 @@ public class JdbcThinConnection implements Connection {
     }
 
     /**
-     * Jdbc channel to communicate in blocking style, regardless of whether streaming mode is enabled or not.
+     * Jdbc channel to communicate in blocking style, regardless of whether
+     * streaming mode is enabled or not.
      */
     private abstract class BlockingJdbcChannel {
         /** Request ID -> Jdbc result map. */
         private Map<Long, CompletableFuture<JdbcResult>> results = new ConcurrentHashMap<>();
 
         /**
-         * Do request in blocking style. It just call {@link JdbcThinConnection#sendRequest(JdbcRequest)} for
-         * non-streaming mode and creates future and waits it completion when streaming is enabled.
+         * Do request in blocking style. It just call
+         * {@link JdbcThinConnection#sendRequest(JdbcRequest)} for non-streaming
+         * mode and creates future and waits it completion when streaming is
+         * enabled.
          *
          * @param req Request.
          * @return Result for given request.
          */
         <R extends JdbcResult> R doRequest(JdbcRequest req) throws SQLException, InterruptedException, ExecutionException {
             R res;
+
             if (isStream()) {
                 CompletableFuture<JdbcResult> resFut = new CompletableFuture<>();
 
                 CompletableFuture<JdbcResult> oldFut = results.put(req.requestId(), resFut);
+
                 assert oldFut == null : "Another request with the same id is waiting for result.";
 
                 sendRequestNotWaitResponse(req, streamState.streamingStickyIo);
@@ -2359,6 +2386,7 @@ public class JdbcThinConnection implements Connection {
             }
             else
                 res = sendRequest(req).response();
+
             return res;
         }
 
@@ -2370,11 +2398,15 @@ public class JdbcThinConnection implements Connection {
          */
         boolean handleResult(long reqId, JdbcResult res) {
             boolean handled = false;
+
             CompletableFuture<JdbcResult> fut = results.remove(reqId);
+
             if (fut != null) {
                 fut.complete(res);
+
                 handled = true;
             }
+
             return handled;
         }
     }

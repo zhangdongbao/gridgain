@@ -85,7 +85,7 @@ public class JdbcThinTcpIo {
     /** Version 2.8.1. */
     private static final ClientListenerProtocolVersion VER_2_8_1 = ClientListenerProtocolVersion.create(2, 8, 1);
 
-    /** Version 2.9.0. */
+    /** Version 2.8.2. */
     private static final ClientListenerProtocolVersion VER_2_8_2 = ClientListenerProtocolVersion.create(2, 8, 2);
 
     /** Current version. */
