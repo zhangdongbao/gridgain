@@ -46,7 +46,7 @@ public class TxPartitionCounterStateConsistencyVolatileRebalanceTest extends TxP
 
     @Test
     @WithSystemProperty(key = IgniteSystemProperties.IGNITE_CACHE_REMOVED_ENTRIES_TTL, value = "1000")
-    public void testPartitionConsistencyDuringRebalanceAndConcurrentUpdates_RemoveQueueCleared() throws Exception {
+    @Override public void testPartitionConsistencyDuringRebalanceAndConcurrentUpdates_RemoveQueueCleared() throws Exception {
         super.testPartitionConsistencyDuringRebalanceAndConcurrentUpdates_RemoveQueueCleared();
     }
 
