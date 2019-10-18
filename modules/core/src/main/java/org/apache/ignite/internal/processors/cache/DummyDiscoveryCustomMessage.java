@@ -21,6 +21,7 @@ import org.apache.ignite.internal.managers.discovery.DiscoCache;
 import org.apache.ignite.internal.managers.discovery.DiscoveryCustomMessage;
 import org.apache.ignite.internal.managers.discovery.GridDiscoveryManager;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
+import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.lang.IgniteUuid;
 import org.jetbrains.annotations.Nullable;
 
@@ -28,6 +29,8 @@ import org.jetbrains.annotations.Nullable;
  * Dummy message is uses as lightweight storage discovery custom event parameters.
  */
 public class DummyDiscoveryCustomMessage implements DiscoveryCustomMessage {
+    /** */
+    private static final long serialVersionUID = 0L;
 
     /** */
     private final IgniteUuid id;
@@ -64,6 +67,11 @@ public class DummyDiscoveryCustomMessage implements DiscoveryCustomMessage {
 
     @Override public DiscoCache createDiscoCache(GridDiscoveryManager mgr, AffinityTopologyVersion topVer,
         DiscoCache discoCache) {
-        return null;
+        throw new UnsupportedOperationException();
+    }
+
+    /** {@inheritDoc} */
+    @Override public String toString() {
+        return S.toString(DummyDiscoveryCustomMessage.class, this);
     }
 }
