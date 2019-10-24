@@ -23,9 +23,11 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.locks.ReentrantLock;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteException;
 import org.apache.ignite.IgniteLogger;
@@ -118,9 +120,6 @@ public class WalStateManager extends GridCacheSharedManagerAdapter {
 
     /** Disconnected flag. */
     private boolean disconnected;
-
-    /** Holder for groups with temporary disabled WAL. */
-    private volatile TemporaryDisabledWal tmpDisabledWal;
 
     /** */
     private volatile WALDisableContext walDisableContext;
@@ -405,9 +404,10 @@ public class WalStateManager extends GridCacheSharedManagerAdapter {
      * in OWNING state if such feature is enabled.
      *
      * @param topVer Topology version.
+     * @param grpsForRebalance Cache groups.
      * @param changedBaseline The exchange is caused by Baseline Topology change.
      */
-    public void changeLocalStatesOnExchangeDone(AffinityTopologyVersion topVer, boolean changedBaseline) {
+    public void changeLocalStatesOnExchangeDone(AffinityTopologyVersion topVer, List<CacheGroupContext> grpsForRebalance, boolean changedBaseline) {
         if (changedBaseline
             && cctx.tm().pendingTxsTracker().enabled()
             || !IgniteSystemProperties.getBoolean(IgniteSystemProperties.IGNITE_DISABLE_WAL_DURING_REBALANCING, true))
@@ -415,11 +415,10 @@ public class WalStateManager extends GridCacheSharedManagerAdapter {
 
         Set<Integer> grpsToEnableWal = new HashSet<>();
         Set<Integer> grpsToDisableWal = new HashSet<>();
-        Set<Integer> grpsWithWalDisabled = new HashSet<>();
 
         boolean hasNonEmptyOwning = false;
 
-        for (CacheGroupContext grp : cctx.cache().cacheGroups()) {
+        for (CacheGroupContext grp : grpsForRebalance) {
             if (grp.isLocal() || !grp.affinityNode() || !grp.persistenceEnabled())
                 continue;
 
@@ -455,16 +454,9 @@ public class WalStateManager extends GridCacheSharedManagerAdapter {
 
             if (hasOwning && !grp.localWalEnabled())
                 grpsToEnableWal.add(grp.groupId());
-            else if (hasMoving && !hasOwning && grp.localWalEnabled()) {
+            else if (hasMoving && !hasOwning && grp.localWalEnabled())
                 grpsToDisableWal.add(grp.groupId());
-
-                grpsWithWalDisabled.add(grp.groupId());
-            }
-            else if (!grp.localWalEnabled())
-                grpsWithWalDisabled.add(grp.groupId());
         }
-
-        tmpDisabledWal = new TemporaryDisabledWal(grpsWithWalDisabled, topVer);
 
         if (grpsToEnableWal.isEmpty() && grpsToDisableWal.isEmpty())
             return;
@@ -490,68 +482,45 @@ public class WalStateManager extends GridCacheSharedManagerAdapter {
      * @param grpId Group ID.
      * @param topVer Topology version.
      */
-    public void onGroupRebalanceFinished(int grpId, AffinityTopologyVersion topVer) {
-        TemporaryDisabledWal session0 = tmpDisabledWal;
+    public void onGroupRebalanceFinished(int grpId) {
+        CacheGroupContext grp = cctx.cache().cacheGroup(grpId);
 
-        if (session0 == null || session0.topVer.compareTo(topVer) > 0)
+        assert grp != null;
+
+        if (grp.localWalEnabled())
             return;
 
-        session0.remainingGrps.remove(grpId);
+        grp.localWalEnabled(true, false);
 
-        if (session0.remainingGrps.isEmpty()) {
-            synchronized (mux) {
-                if (tmpDisabledWal != session0)
-                    return;
+        // Pending updates in groups with disabled WAL are not protected from crash.
+        // Need to trigger checkpoint for attempt to persist them.
+        CheckpointProgress cpFut = triggerCheckpoint("wal-local-state-changed-" + grp.cacheOrGroupName());
 
-                for (Integer grpId0 : session0.disabledGrps) {
-                    CacheGroupContext grp = cctx.cache().cacheGroup(grpId0);
+        assert cpFut != null;
 
-                    assert grp != null;
-
-                    if (!grp.localWalEnabled())
-                        grp.localWalEnabled(true, false);
-                }
-
-                tmpDisabledWal = null;
-            }
-
-            // Pending updates in groups with disabled WAL are not protected from crash.
-            // Need to trigger checkpoint for attempt to persist them.
-            CheckpointProgress cpFut = triggerCheckpoint("wal-local-state-changed-rebalance-finished-" + topVer);
-
-            assert cpFut != null;
-
-            // It's safe to switch partitions to owning state only if checkpoint was successfully finished.
-            cpFut.futureFor(FINISHED).listen(new IgniteInClosureX<IgniteInternalFuture>() {
-                @Override public void applyx(IgniteInternalFuture future) {
-                    if (X.hasCause(future.error(), NodeStoppingException.class))
-                        return;
-
-                    for (Integer grpId0 : session0.disabledGrps) {
-                        try {
-                            cctx.database().walEnabled(grpId0, true, true);
-                        }
-                        catch (Exception e) {
-                            if (!X.hasCause(e, NodeStoppingException.class))
-                                throw e;
-                        }
-
-                        CacheGroupContext grp = cctx.cache().cacheGroup(grpId0);
-
-                        if (grp != null)
-                            grp.topology().ownMoving(topVer);
-                        else if (log.isDebugEnabled())
-                            log.debug("Cache group was destroyed before checkpoint finished, [grpId=" + grpId0 + ']');
-                    }
-
-                    if (log.isDebugEnabled())
-                        log.debug("Refresh partitions due to rebalance finished");
-
-                    // Trigger exchange for switching to ideal assignment when all nodes are ready.
-                    cctx.exchange().refreshPartitions();
-                }
-            });
+        try {
+            cpFut.futureFor(FINISHED).get();
         }
+        catch (IgniteCheckedException e) {
+            if (X.hasCause(e, NodeStoppingException.class))
+                return;
+        }
+
+        try {
+            cctx.database().walEnabled(grpId, true, true);
+        }
+        catch (Exception e) {
+            if (!X.hasCause(e, NodeStoppingException.class))
+                throw e;
+        }
+
+        grp.topology().ownMoving();
+
+        if (log.isDebugEnabled())
+            log.debug("Refresh partitions due to rebalance finished for group, [grp=" + grpId + ']');
+
+        // Trigger exchange for switching to ideal assignment when all nodes are ready.
+        cctx.exchange().refreshPartitions(Collections.singleton(grp));
     }
 
     /**

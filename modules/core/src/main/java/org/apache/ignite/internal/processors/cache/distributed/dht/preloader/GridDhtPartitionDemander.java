@@ -287,7 +287,8 @@ public class GridDhtPartitionDemander {
         boolean force,
         long rebalanceId,
         final Runnable next,
-        @Nullable final GridCompoundFuture<Boolean, Boolean> forcedRebFut
+        @Nullable final GridCompoundFuture<Boolean, Boolean> forcedRebFut,
+        GridFutureAdapter commonRebalanceFuture
     ) {
         if (log.isDebugEnabled())
             log.debug("Adding partition assignments: " + assignments);
@@ -300,14 +301,6 @@ public class GridDhtPartitionDemander {
             final RebalanceFuture oldFut = rebalanceFut;
 
             final RebalanceFuture fut = new RebalanceFuture(grp, assignments, log, rebalanceId);
-
-            if (!grp.localWalEnabled())
-                fut.listen(new IgniteInClosureX<IgniteInternalFuture<Boolean>>() {
-                    @Override public void applyx(IgniteInternalFuture<Boolean> future) throws IgniteCheckedException {
-                        if (future.get())
-                            ctx.walState().onGroupRebalanceFinished(grp.groupId(), assignments.topologyVersion());
-                    }
-                });
 
             if (!oldFut.isInitial())
                 oldFut.cancel();
@@ -366,6 +359,8 @@ public class GridDhtPartitionDemander {
 
                 fut.sendRebalanceFinishedEvent();
 
+                ctx.exchange().scheduleResendPartitions();
+
                 return null;
             }
 
@@ -376,6 +371,8 @@ public class GridDhtPartitionDemander {
 
                         if (nonNull(next))
                             next.run();
+                        else
+                            commonRebalanceFuture.onDone();
                     }
                     catch (IgniteCheckedException e) {
                         if (log.isDebugEnabled())
@@ -1527,7 +1524,10 @@ public class GridDhtPartitionDemander {
                     log.debug("Partitions have been scheduled to resend [reason=" +
                         "Rebalance is done [grp=" + grp.cacheOrGroupName() + "]");
 
-                ctx.exchange().scheduleResendPartitions();
+                if (!grp.localWalEnabled() && !cancelled)
+                    ctx.walState().onGroupRebalanceFinished(grp.groupId());
+                else
+                    ctx.exchange().scheduleResendPartitions();
 
                 Collection<Integer> m = new HashSet<>();
 

@@ -33,7 +33,6 @@ import org.apache.ignite.internal.managers.discovery.DiscoveryCustomMessage;
 import org.apache.ignite.internal.processors.affinity.AffinityAssignment;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.cache.CacheGroupContext;
-import org.apache.ignite.internal.processors.cache.DummyDiscoveryCustomMessage;
 import org.apache.ignite.internal.processors.cache.DynamicCacheChangeBatch;
 import org.apache.ignite.internal.processors.cache.GridCacheContext;
 import org.apache.ignite.internal.processors.cache.GridCacheEntryInfo;
@@ -230,22 +229,6 @@ public class GridDhtPreloader extends GridCachePreloaderAdapter {
         if (customMessage instanceof DynamicCacheChangeBatch) {
             return !((DynamicCacheChangeBatch)customMessage).requests().stream().filter((cacheReq) -> {
                 return grp.cacheIds().contains(CU.cacheId(cacheReq.cacheName()));
-            }).findAny().isPresent();
-        }
-
-        if (customMessage instanceof DummyDiscoveryCustomMessage) {
-            DummyDiscoveryCustomMessage dummyMsg = (DummyDiscoveryCustomMessage)customMessage;
-
-            if (!DynamicCacheChangeBatch.class.getSimpleName().equals(dummyMsg.getParameter("class")))
-                return false;
-
-            int[] cacheIds = (int[])dummyMsg.getParameter("caches");
-
-            if (cacheIds == null)
-                return false;
-
-            return !grp.cacheIds().stream().filter(id -> {
-                return U.containsIntArray(cacheIds, id);
             }).findAny().isPresent();
         }
 
@@ -488,9 +471,10 @@ public class GridDhtPreloader extends GridCachePreloaderAdapter {
         boolean forceRebalance,
         long rebalanceId,
         Runnable next,
-        @Nullable GridCompoundFuture<Boolean, Boolean> forcedRebFut
+        @Nullable GridCompoundFuture<Boolean, Boolean> forcedRebFut,
+        GridFutureAdapter commonRebalanceFuture
     ) {
-        return demander.addAssignments(assignments, forceRebalance, rebalanceId, next, forcedRebFut);
+        return demander.addAssignments(assignments, forceRebalance, rebalanceId, next, forcedRebFut, commonRebalanceFuture);
     }
 
     /**

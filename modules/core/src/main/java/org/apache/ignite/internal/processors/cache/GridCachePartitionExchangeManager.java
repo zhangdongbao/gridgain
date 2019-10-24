@@ -279,6 +279,9 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
     /** Histogram of blocking PME durations. */
     private volatile HistogramMetric blockingDurationHistogram;
 
+    /** Future for common rebalance process, matched on rebalanse chain after last exchnage. */
+    private IgniteInternalFuture commonRebalanceFut = new GridFinishedFuture();
+
     /** Discovery listener. */
     private final DiscoveryEventListener discoLsnr = new DiscoveryEventListener() {
         @Override public void onEvent(DiscoveryEvent evt, DiscoCache cache) {
@@ -3377,6 +3380,8 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
 
                         Runnable r = null;
 
+                        GridFutureAdapter rebFut = new GridFutureAdapter();
+
                         List<String> rebList = new LinkedList<>();
 
                         boolean assignsCancelled = false;
@@ -3399,7 +3404,8 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
                                     forcePreload,
                                     cnt,
                                     r,
-                                    forcedRebFut);
+                                    forcedRebFut,
+                                    rebFut);
 
                                 if (cur != null) {
                                     rebList.add(grp.cacheOrGroupName());
@@ -3428,7 +3434,11 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
                             // Start rebalancing cache groups chain. Each group will be rebalanced
                             // sequentially one by one e.g.:
                             // ignite-sys-cache -> cacheGroupR1 -> cacheGroupP2 -> cacheGroupR3
-                            r.run();
+                            Runnable rebChain = r;
+
+                            commonRebalanceFut.listen(fut -> rebChain.run());
+
+                            commonRebalanceFut = rebFut;
                         }
                         else
                             U.log(log, "Skipping rebalancing (nothing scheduled) " +

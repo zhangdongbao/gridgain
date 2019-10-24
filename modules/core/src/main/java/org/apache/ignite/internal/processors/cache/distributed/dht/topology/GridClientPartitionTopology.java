@@ -1122,7 +1122,7 @@ public class GridClientPartitionTopology implements GridDhtPartitionTopology {
     }
 
     /** {@inheritDoc} */
-    @Override public void ownMoving(AffinityTopologyVersion rebFinishedTopVer) {
+    @Override public void ownMoving() {
         // No-op
     }
 

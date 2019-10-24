@@ -72,7 +72,6 @@ import org.apache.ignite.internal.processors.cache.CacheAffinityChangeMessage;
 import org.apache.ignite.internal.processors.cache.CacheGroupContext;
 import org.apache.ignite.internal.processors.cache.CacheGroupDescriptor;
 import org.apache.ignite.internal.processors.cache.CachePartitionExchangeWorkerTask;
-import org.apache.ignite.internal.processors.cache.DummyDiscoveryCustomMessage;
 import org.apache.ignite.internal.processors.cache.DynamicCacheChangeBatch;
 import org.apache.ignite.internal.processors.cache.DynamicCacheChangeFailureMessage;
 import org.apache.ignite.internal.processors.cache.DynamicCacheChangeRequest;
@@ -368,6 +367,9 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
     /** Tracing span. */
     private Span span = NoopSpan.INSTANCE;
+
+    /** List of group's ctxs which real affected this exchnage. */
+    List<CacheGroupContext> affectedGrps;
 
     /**
      * @param cctx Cache context.
@@ -2300,8 +2302,12 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                         grp.topology().onExchangeDone(this, grp.affinity().readyAffinity(res), false);
                 }
 
-                if (changedAffinity())
-                    cctx.walState().changeLocalStatesOnExchangeDone(res, changedBaseline());
+                if (changedAffinity()) {
+                    affectedGrps = cctx.cache().cacheGroups().stream()
+                        .filter(grp -> grp.preloader().rebalanceRequired(this)).collect(Collectors.toList());
+
+                    cctx.walState().changeLocalStatesOnExchangeDone(res, affectedGrps, changedBaseline());
+                }
             }
         }
         catch (Throwable t) {
@@ -2381,23 +2387,8 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
             for (PartitionsExchangeAware comp : cctx.exchange().exchangeAwareComponents())
                 comp.onDoneAfterTopologyUnlock(this);
 
-            if (firstDiscoEvt instanceof DiscoveryCustomEvent) {
-                DiscoveryCustomMessage customMessage = ((DiscoveryCustomEvent)firstDiscoEvt).customMessage();
-
-                if (customMessage instanceof DynamicCacheChangeBatch) {
-                    DynamicCacheChangeBatch msg = (DynamicCacheChangeBatch)customMessage;
-
-                    DummyDiscoveryCustomMessage dummyMsg = new DummyDiscoveryCustomMessage(msg.id());
-
-                    dummyMsg.putParameter("class", msg.getClass().getSimpleName());
-                    dummyMsg.putParameter("caches", msg.requests().stream()
-                        .mapToInt(changeRequest-> CU.cacheId(changeRequest.cacheName())).toArray());
-
-                    ((DiscoveryCustomEvent)firstDiscoEvt).customMessage(dummyMsg);
-                }
-                else
-                    ((DiscoveryCustomEvent)firstDiscoEvt).customMessage(null);
-            }
+            if (firstDiscoEvt instanceof DiscoveryCustomEvent)
+                ((DiscoveryCustomEvent)firstDiscoEvt).customMessage(null);
 
             if (err == null) {
                 if (exchCtx != null && (exchCtx.events().hasServerLeft() || exchCtx.events().hasServerJoin())) {
@@ -2414,6 +2405,13 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         }
 
         return false;
+    }
+
+    /**
+     * @return Group's ctxs.
+     */
+    public boolean isGropAffected(CacheGroupContext grp) {
+        return affectedGrps.contains(grp);
     }
 
     /**
