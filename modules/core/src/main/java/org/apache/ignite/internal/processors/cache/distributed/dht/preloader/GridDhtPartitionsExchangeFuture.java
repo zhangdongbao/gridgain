@@ -368,8 +368,8 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     /** Tracing span. */
     private Span span = NoopSpan.INSTANCE;
 
-    /** List of group's ctxs which real affected this exchnage. */
-    List<CacheGroupContext> affectedGrps;
+    /** List of group's ids which real affected this exchnage. */
+    private int[] affectedGrps;
 
     /**
      * @param cctx Cache context.
@@ -2304,7 +2304,8 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
                 if (changedAffinity()) {
                     affectedGrps = cctx.cache().cacheGroups().stream()
-                        .filter(grp -> grp.preloader().rebalanceRequired(this)).collect(Collectors.toList());
+                        .filter(grp -> grp.preloader().rebalanceRequired(this))
+                        .mapToInt(grp -> grp.groupId()).toArray();
 
                     cctx.walState().changeLocalStatesOnExchangeDone(res, affectedGrps, changedBaseline());
                 }
@@ -2411,7 +2412,11 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
      * @return Group's ctxs.
      */
     public boolean isGropAffected(CacheGroupContext grp) {
-        return affectedGrps.contains(grp);
+        for (int grpId : affectedGrps)
+            if (grpId == grp.groupId())
+                return true;
+
+        return false;
     }
 
     /**

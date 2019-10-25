@@ -3332,7 +3332,7 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
                             IgniteCacheSnapshotManager snp = cctx.snapshot();
 
                             for (final CacheGroupContext grp : cctx.cache().cacheGroups()) {
-                                if (exchFut != null && !grp.preloader().rebalanceRequired(exchFut))
+                                if (exchFut != null && !(exchFut.changedAffinity() && exchFut.isGropAffected(grp)))
                                     continue;
 
                                 long delay = grp.config().getRebalanceDelay();

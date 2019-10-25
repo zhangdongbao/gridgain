@@ -404,10 +404,10 @@ public class WalStateManager extends GridCacheSharedManagerAdapter {
      * in OWNING state if such feature is enabled.
      *
      * @param topVer Topology version.
-     * @param grpsForRebalance Cache groups.
+     * @param grpsForRebalance Cache group ids.
      * @param changedBaseline The exchange is caused by Baseline Topology change.
      */
-    public void changeLocalStatesOnExchangeDone(AffinityTopologyVersion topVer, List<CacheGroupContext> grpsForRebalance, boolean changedBaseline) {
+    public void changeLocalStatesOnExchangeDone(AffinityTopologyVersion topVer, int[] grpsForRebalance, boolean changedBaseline) {
         if (changedBaseline
             && cctx.tm().pendingTxsTracker().enabled()
             || !IgniteSystemProperties.getBoolean(IgniteSystemProperties.IGNITE_DISABLE_WAL_DURING_REBALANCING, true))
@@ -418,8 +418,10 @@ public class WalStateManager extends GridCacheSharedManagerAdapter {
 
         boolean hasNonEmptyOwning = false;
 
-        for (CacheGroupContext grp : grpsForRebalance) {
-            if (grp.isLocal() || !grp.affinityNode() || !grp.persistenceEnabled())
+        for (int grpId : grpsForRebalance) {
+            CacheGroupContext grp = cctx.cache().cacheGroup(grpId);
+
+            if (grp == null || grp.isLocal() || !grp.affinityNode() || !grp.persistenceEnabled())
                 continue;
 
             boolean hasOwning = false;
