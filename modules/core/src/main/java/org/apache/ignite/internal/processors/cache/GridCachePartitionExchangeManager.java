@@ -3015,12 +3015,27 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
         boolean hasPendingExchange() {
             if (!futQ.isEmpty()) {
                 for (CachePartitionExchangeWorkerTask task : futQ) {
-                    if (isExchangeTask(task))
+                    if (isExchangeTask(task) && changeAffinityTask(task))
                         return true;
                 }
             }
 
             return false;
+        }
+
+        /**
+         * Checks the task will change affinity or not.
+         * @param task
+         * @return
+         */
+        private boolean changeAffinityTask(CachePartitionExchangeWorkerTask task) {
+            if (task instanceof GridDhtPartitionsExchangeFuture) {
+                GridDhtPartitionsExchangeFuture fut = (GridDhtPartitionsExchangeFuture)task;
+
+                return fut.changedAffinity();
+            }
+
+            return true;
         }
 
         /**
@@ -3332,8 +3347,11 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
                             IgniteCacheSnapshotManager snp = cctx.snapshot();
 
                             for (final CacheGroupContext grp : cctx.cache().cacheGroups()) {
-                                if (exchFut != null && !(exchFut.changedAffinity() && exchFut.isGropAffected(grp)))
+                                if (exchFut != null && !(exchFut.changedAffinity() && exchFut.isGropAffected(grp))) {
+                                    log.info("Cache skiped " + grp.cacheOrGroupName());
+
                                     continue;
+                                }
 
                                 long delay = grp.config().getRebalanceDelay();
 
