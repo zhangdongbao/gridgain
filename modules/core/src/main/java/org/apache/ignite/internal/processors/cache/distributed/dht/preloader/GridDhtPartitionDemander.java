@@ -1524,7 +1524,7 @@ public class GridDhtPartitionDemander {
                     log.debug("Partitions have been scheduled to resend [reason=" +
                         "Rebalance is done [grp=" + grp.cacheOrGroupName() + "]");
 
-                if (!grp.localWalEnabled() && !cancelled)
+                if (!grp.localWalEnabled() && (!cancelled && !isDone()) || (isDone() && result()))
                     ctx.walState().onGroupRebalanceFinished(grp.groupId());
                 else
                     ctx.exchange().scheduleResendPartitions();
