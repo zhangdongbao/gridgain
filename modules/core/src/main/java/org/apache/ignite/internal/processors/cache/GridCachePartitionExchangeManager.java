@@ -3348,7 +3348,7 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
 
                             for (final CacheGroupContext grp : cctx.cache().cacheGroups()) {
                                 if (exchFut != null && !(exchFut.changedAffinity() && exchFut.isGropAffected(grp))) {
-                                    log.info("Cache skiped " + grp.cacheOrGroupName());
+                                    ((GridFutureAdapter)grp.preloader().syncFuture()).onDone();
 
                                     continue;
                                 }
