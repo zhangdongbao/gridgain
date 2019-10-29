@@ -40,6 +40,7 @@ import org.apache.ignite.configuration.DataStorageConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.configuration.WALMode;
 import org.apache.ignite.internal.IgniteEx;
+import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.internal.TestRecordingCommunicationSpi;
 import org.apache.ignite.internal.processors.cache.CacheGroupMetricsImpl;
 import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionDemandMessage;
@@ -301,12 +302,12 @@ public class IgnitePdsCacheWalDisabledOnRebalancingTest extends GridCommonAbstra
         CacheGroupMetricsImpl metrics;
         int locMovingPartsNum;
 
+        ig1 = startGrid(1);
+
         // Enable blocking checkpointer on node idx=1 (see BlockingCheckpointFileIOFactory).
         fileIoBlockingSemaphore.drainPermits();
 
         try {
-            ig1 = startGrid(1);
-
             metrics = ig1.cachex(CACHE3_NAME).context().group().metrics();
             locMovingPartsNum = metrics.getLocalNodeMovingPartitionsCount();
 
@@ -364,17 +365,34 @@ public class IgnitePdsCacheWalDisabledOnRebalancingTest extends GridCommonAbstra
         // Blocking fileIO and blockMessagePredicate to block checkpointer and rebalancing for node idx=1.
         useBlockingFileIO = true;
 
+        int groupId = ((IgniteEx) ig0).cachex(CACHE3_NAME).context().groupId();
+
+        blockMessagePredicate = (node, msg) -> {
+            if (msg instanceof GridDhtPartitionDemandMessage)
+                return ((GridDhtPartitionDemandMessage) msg).groupId() == groupId;
+
+            return false;
+        };
+
+        // Wait for rebalance (all partitions will be in MOVING state until cp is finished).
+        IgniteInternalFuture<Boolean> rebFut = startGrid(1).cachex(CACHE3_NAME).context().group().preloader().rebalanceFuture();
+
         // Enable blocking checkpointer on node idx=1 (see BlockingCheckpointFileIOFactory).
         fileIoBlockingSemaphore.drainPermits();
 
-        // Wait for rebalance (all partitions will be in MOVING state until cp is finished).
-        startGrid(1).cachex(CACHE3_NAME).context().group().preloader().rebalanceFuture().get();
+        TestRecordingCommunicationSpi commSpi = (TestRecordingCommunicationSpi)grid(1).configuration().getCommunicationSpi();
+
+        commSpi.stopBlock();
 
         startGrid("client");
+
+        assertFalse("Rebalance's future would not done until simaphore should not released.", rebFut.isDone());
 
         fileIoBlockingSemaphore.release(Integer.MAX_VALUE);
 
         awaitPartitionMapExchange();
+
+        assertTrue(rebFut.get());
 
         assertPartitionsSame(idleVerify(grid(0), CACHE3_NAME));
     }
