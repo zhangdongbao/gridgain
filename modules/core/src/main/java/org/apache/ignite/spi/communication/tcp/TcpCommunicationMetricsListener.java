@@ -22,7 +22,6 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
-import org.apache.ignite.internal.managers.communication.GridIoMessage;
 import org.apache.ignite.internal.processors.metric.GridMetricManager;
 import org.apache.ignite.internal.processors.metric.MetricRegistry;
 import org.apache.ignite.internal.processors.metric.impl.AtomicLongMetric;
@@ -50,7 +49,7 @@ import static org.apache.ignite.spi.communication.tcp.TcpCommunicationSpi.sentMe
 /**
  * Statistics for {@link org.apache.ignite.spi.communication.tcp.TcpCommunicationSpi}.
  */
-class TcpCommunicationMetricsListener {
+final class TcpCommunicationMetricsListener {
     /** Metrics manager. */
     private final GridMetricManager mmgr;
 
@@ -174,22 +173,22 @@ class TcpCommunicationMetricsListener {
      * @param nodeId Receiver node id.
      */
     public void onMessageSent(Message msg, Object consistentId, UUID nodeId) {
-        assert msg != null;
-        assert nodeId != null;
-
-        if (msg instanceof GridIoMessage) {
-            msg = ((GridIoMessage) msg).message();
-
-            updateMessageTypeMap(msg);
-
-            sentMsgsMetric.increment();
-
-            sentMsgsMetricsByType.computeIfAbsent(msg.directType(), sentMsgsCntByTypeMetricFactory).increment();
-
-            sentMsgsMetricsByConsistentId.computeIfAbsent(consistentId, sentMsgsCntByConsistentIdMetricFactory).increment();
-
-            sentMsgsMetricsByNodeId.computeIfAbsent(nodeId, id -> new AtomicLong()).incrementAndGet();
-        }
+//        assert msg != null;
+//        assert nodeId != null;
+//
+//        if (msg instanceof GridIoMessage) {
+//            msg = ((GridIoMessage) msg).message();
+//
+//            updateMessageTypeMap(msg);
+//
+//            sentMsgsMetric.increment();
+//
+//            sentMsgsMetricsByType.computeIfAbsent(msg.directType(), sentMsgsCntByTypeMetricFactory).increment();
+//
+//            sentMsgsMetricsByConsistentId.computeIfAbsent(consistentId, sentMsgsCntByConsistentIdMetricFactory).increment();
+//
+//            sentMsgsMetricsByNodeId.computeIfAbsent(nodeId, id -> new AtomicLong()).incrementAndGet();
+//        }
     }
 
     /**
@@ -200,22 +199,22 @@ class TcpCommunicationMetricsListener {
      * @param nodeId Sender node id.
      */
     public void onMessageReceived(Message msg, Object consistentId, UUID nodeId) {
-        assert msg != null;
-        assert nodeId != null;
-
-        if (msg instanceof GridIoMessage) {
-            msg = ((GridIoMessage) msg).message();
-
-            updateMessageTypeMap(msg);
-
-            rcvdMsgsMetric.increment();
-
-            rcvdMsgsMetricsByType.computeIfAbsent(msg.directType(), rcvdMsgsCntByTypeMetricFactory).increment();
-
-            rcvdMsgsMetricsByConsistentId.computeIfAbsent(consistentId, rcvdMsgsCntByConsistentIdMetricFactory).increment();
-
-            rcvdMsgsMetricsByNodeId.computeIfAbsent(nodeId, id -> new AtomicLong()).incrementAndGet();
-        }
+//        assert msg != null;
+//        assert nodeId != null;
+//
+//        if (msg instanceof GridIoMessage) {
+//            msg = ((GridIoMessage) msg).message();
+//
+//            updateMessageTypeMap(msg);
+//
+//            rcvdMsgsMetric.increment();
+//
+//            rcvdMsgsMetricsByType.computeIfAbsent(msg.directType(), rcvdMsgsCntByTypeMetricFactory).increment();
+//
+//            rcvdMsgsMetricsByConsistentId.computeIfAbsent(consistentId, rcvdMsgsCntByConsistentIdMetricFactory).increment();
+//
+//            rcvdMsgsMetricsByNodeId.computeIfAbsent(nodeId, id -> new AtomicLong()).incrementAndGet();
+//        }
     }
 
     /**
