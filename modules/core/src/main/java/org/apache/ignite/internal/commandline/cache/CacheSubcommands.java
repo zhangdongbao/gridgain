@@ -23,6 +23,7 @@ import org.apache.ignite.internal.commandline.cache.argument.FindAndDeleteGarbag
 import org.apache.ignite.internal.commandline.cache.argument.IdleVerifyCommandArg;
 import org.apache.ignite.internal.commandline.cache.argument.ListCommandArg;
 import org.apache.ignite.internal.commandline.cache.argument.ValidateIndexesCommandArg;
+import org.apache.ignite.internal.commandline.cache.argument.IndexesListArg;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -67,7 +68,12 @@ public enum CacheSubcommands {
     /**
      * Find and remove garbage.
      */
-    FIND_AND_DELETE_GARBAGE("find_garbage", FindAndDeleteGarbageArg.class, new FindAndDeleteGarbage());
+    FIND_AND_DELETE_GARBAGE("find_garbage", FindAndDeleteGarbageArg.class, new FindAndDeleteGarbage()),
+
+    /**
+     * Index list.
+     */
+    INDEX_LIST("indexes_list", IndexesListArg.class, new FindAndDeleteGarbage());
 
 
     /** Enumerated values. */
