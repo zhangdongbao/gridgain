@@ -1,6 +1,5 @@
 package org.apache.ignite.internal.commandline.cache;
 
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.logging.Logger;
@@ -9,20 +8,22 @@ import org.apache.ignite.internal.client.GridClient;
 import org.apache.ignite.internal.client.GridClientConfiguration;
 import org.apache.ignite.internal.commandline.Command;
 import org.apache.ignite.internal.commandline.CommandArgIterator;
+import org.apache.ignite.internal.commandline.TaskExecutor;
 import org.apache.ignite.internal.commandline.argument.CommandArg;
 import org.apache.ignite.internal.commandline.argument.CommandArgUtils;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.visor.cache.VisorListIndexesResult;
+import org.apache.ignite.internal.visor.cache.index.IndexListTaskArg;
 
-public class IndexesList implements Command<IndexesList.Arguments> {
+public class IndexesList implements Command<IndexesList.CdmArgs> {
 
     /** Exception message. */
-    public static final String CACHES_GROUPS_OR_INDEXES_WERE_SPECIFIED_MESSAGE = "Arguments " + IndexexListComand.GRP_NAME
-        + ", " + IndexexListComand.CACHE_NAME
-        + ", " + IndexexListComand.IDX_NAME + " cannot use together.";
+    public static final String CACHES_GROUPS_OR_INDEXES_WERE_SPECIFIED_MESSAGE = "Arguments " + IndexListComand.GRP_NAME
+        + ", " + IndexListComand.CACHE_NAME
+        + ", " + IndexListComand.IDX_NAME + " are mutually exclusive.";
 
     /** Command parsed arguments. */
-    private Arguments args;
+    private CdmArgs args;
 
     /** Logger. */
     private Logger logger;
@@ -30,19 +31,27 @@ public class IndexesList implements Command<IndexesList.Arguments> {
     @Override public Object execute(GridClientConfiguration clientCfg, Logger logger) throws Exception {
         this.logger = logger;
 
-        String nodeId = args.nodeId();
+
+        //String nodeId = args.nodeId();
 
 
         Map<ClusterNode, VisorListIndexesResult> res = null;
 
         try (GridClient client = Command.startClient(clientCfg)) {
+            //TODO: list for index names
+            IndexListTaskArg taskArg = new IndexListTaskArg(args.nodeIds, args.groups, args.caches, args.indexes);
 
+            TaskExecutor.executeTaskByNameOnNode(client, "org.apache.ignite.internal.visor.cache.index.IndexListTask", taskArg, null, clientCfg);
+
+            //TODO: list for cache groups
+            //TODO: list for cache names
+            System.out.println("client started");
         }
 
         return res;
     }
 
-    @Override public Arguments arg() {
+    @Override public CdmArgs arg() {
         return args;
     }
 
@@ -55,7 +64,7 @@ public class IndexesList implements Command<IndexesList.Arguments> {
     }
 
     @Override public void parseArguments(CommandArgIterator argIterator) {
-        String nodeId = null;
+        Set<String> nodeIds = null;
         Set<String> groups = null;
         Set<String> caches = null;
         Set<String> indexes = null;
@@ -63,20 +72,21 @@ public class IndexesList implements Command<IndexesList.Arguments> {
         while (argIterator.hasNextSubArg()) {
             String nextArg = argIterator.nextArg("");
 
-            IndexexListComand arg = CommandArgUtils.of(nextArg, IndexexListComand.class);
+            IndexListComand arg = CommandArgUtils.of(nextArg, IndexListComand.class);
 
             switch (arg) {
                 case NODE_ID:
-                    nodeId = argIterator.nextArg("");
+                    if (nodeIds != null)
+                        throw new IllegalArgumentException(arg.argName() + " arg specified twice.");
+
+                    nodeIds = argIterator.nextStringSet(arg.argName());
                     break;
 
                 case CACHE_NAME:
                     if (caches != null || groups != null || indexes != null)
                         throw new IllegalArgumentException(CACHES_GROUPS_OR_INDEXES_WERE_SPECIFIED_MESSAGE);
 
-                    caches = new HashSet<>();
-
-                    caches.addAll(argIterator.nextStringSet(""));
+                    caches = argIterator.nextStringSet(arg.argName());
 
                     break;
 
@@ -84,9 +94,7 @@ public class IndexesList implements Command<IndexesList.Arguments> {
                     if (caches != null || groups != null || indexes != null)
                         throw new IllegalArgumentException(CACHES_GROUPS_OR_INDEXES_WERE_SPECIFIED_MESSAGE);
 
-                    groups = new HashSet<>();
-
-                    groups.addAll(argIterator.nextStringSet(""));
+                    groups = argIterator.nextStringSet(arg.argName());
 
                     break;
 
@@ -94,48 +102,35 @@ public class IndexesList implements Command<IndexesList.Arguments> {
                     if (caches != null || groups != null || indexes != null)
                         throw new IllegalArgumentException(CACHES_GROUPS_OR_INDEXES_WERE_SPECIFIED_MESSAGE);
 
-                    indexes = new HashSet<>();
-
-                    indexes.addAll(argIterator.nextStringSet(""));
+                    indexes = argIterator.nextStringSet(arg.argName());
 
                     break;
-
             }
 
             groups = argIterator.parseStringSet(nextArg);
         }
 
-        args = new Arguments(nodeId, groups, caches, indexes);
+        args = new CdmArgs(nodeIds, groups, caches, indexes);
     }
 
-    private enum IndexexListComand implements CommandArg {
-        /**
-         *
-         */
+    private enum IndexListComand implements CommandArg {
+        /** */
         NODE_ID("--node-id"),
 
-        /**
-         *
-         */
+        /** */
         GRP_NAME("--cache-group-name"),
 
-        /**
-         *
-         */
+        /** */
         CACHE_NAME("--cache-name"),
 
-        /**
-         *
-         */
+        /** */
         IDX_NAME("--index-name");
 
         /** Option name. */
         private final String name;
 
-        /**
-         *
-         */
-        IndexexListComand(String name) {
+        /** */
+        IndexListComand(String name) {
             this.name = name;
         }
 
@@ -153,7 +148,7 @@ public class IndexesList implements Command<IndexesList.Arguments> {
     /**
      * Container for command arguments.
      */
-    public static class Arguments {
+    public static class CdmArgs {
         /** Groups. */
         private Set<String> groups;
 
@@ -163,24 +158,24 @@ public class IndexesList implements Command<IndexesList.Arguments> {
         /** List of indexes names. */
         private Set<String> indexes;
 
-        /** Node id. */
-        private String nodeId;
+        /** Node ids. */
+        private Set<String> nodeIds;
 
         /**
          *
          */
-        public Arguments(String nodeId, Set<String> groups, Set<String> caches, Set<String> indexes) {
+        public CdmArgs(Set<String> groups, Set<String> caches, Set<String> indexes, Set<String> nodeIds) {
             this.groups = groups;
             this.indexes = indexes;
             this.caches = caches;
-            this.nodeId = nodeId;
+            this.nodeIds = nodeIds;
         }
 
         /**
          * @return Node id.
          */
-        public String nodeId() {
-            return nodeId;
+        public Set<String> nodeId() {
+            return nodeIds;
         }
 
         /**
@@ -206,7 +201,7 @@ public class IndexesList implements Command<IndexesList.Arguments> {
 
         /** {@inheritDoc} */
         @Override public String toString() {
-            return S.toString(Arguments.class, this);
+            return S.toString(CdmArgs.class, this);
         }
     }
 }

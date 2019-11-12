@@ -30,9 +30,9 @@ import org.junit.Test;
 import static org.apache.ignite.internal.commandline.CommandHandler.EXIT_CODE_OK;
 import static org.apache.ignite.internal.processors.cache.persistence.file.FilePageStoreManager.INDEX_FILE_NAME;
 import static org.apache.ignite.testframework.GridTestUtils.assertContains;
-import static org.apache.ignite.util.GridCommandHandlerIndexingUtils.createAndFillCache;
 import static org.apache.ignite.util.GridCommandHandlerIndexingUtils.CACHE_NAME;
 import static org.apache.ignite.util.GridCommandHandlerIndexingUtils.GROUP_NAME;
+import static org.apache.ignite.util.GridCommandHandlerIndexingUtils.createAndFillCache;
 
 /**
  * If you not necessary create nodes for each test you can try use
@@ -155,5 +155,15 @@ public class GridCommandHandlerIndexingTest extends GridCommandHandlerClusterPer
 
             idx.write(trash);
         }
+    }
+
+    /**
+     * @throws Exception If failed to start grids.
+     */
+    @Test
+    public void testCacheIndexList() throws Exception {
+        startGrids(2);
+
+        execute("--cache", "indexes_list");
     }
 }

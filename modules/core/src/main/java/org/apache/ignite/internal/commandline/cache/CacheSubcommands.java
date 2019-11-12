@@ -21,9 +21,9 @@ import org.apache.ignite.internal.commandline.argument.CommandArg;
 import org.apache.ignite.internal.commandline.cache.argument.DistributionCommandArg;
 import org.apache.ignite.internal.commandline.cache.argument.FindAndDeleteGarbageArg;
 import org.apache.ignite.internal.commandline.cache.argument.IdleVerifyCommandArg;
+import org.apache.ignite.internal.commandline.cache.argument.IndexesListArg;
 import org.apache.ignite.internal.commandline.cache.argument.ListCommandArg;
 import org.apache.ignite.internal.commandline.cache.argument.ValidateIndexesCommandArg;
-import org.apache.ignite.internal.commandline.cache.argument.IndexesListArg;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -73,7 +73,7 @@ public enum CacheSubcommands {
     /**
      * Index list.
      */
-    INDEX_LIST("indexes_list", IndexesListArg.class, new FindAndDeleteGarbage());
+    INDEX_LIST("indexes_list", IndexesListArg.class, new IndexesList());
 
 
     /** Enumerated values. */
