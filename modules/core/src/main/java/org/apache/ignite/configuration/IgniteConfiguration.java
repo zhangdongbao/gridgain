@@ -241,7 +241,7 @@ public class IgniteConfiguration {
     public static final long DFLT_MVCC_VACUUM_FREQUENCY = 5000;
 
     /** Default SQL query history size. */
-    public static final int DFLT_SQL_QUERY_HISTORY_SIZE = 1000;
+    public static final int DFLT_SQL_QUERY_HISTORY_SIZE = 0;
 
     /** Optional local Ignite instance name. */
     private String igniteInstanceName;
@@ -1038,7 +1038,7 @@ public class IgniteConfiguration {
      * @return {@code this} for chaining.
      */
     public IgniteConfiguration setSqlQueryHistorySize(int size) {
-        sqlQryHistSize = size;
+//        sqlQryHistSize = size;
 
         return this;
     }
