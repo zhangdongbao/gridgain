@@ -24,6 +24,7 @@ import org.apache.ignite.internal.dto.IgniteDataTransferObject;
 import org.apache.ignite.internal.util.typedef.internal.U;
 
 //TODO: consider moving this to indexing module
+
 /**
  * Argument object for {@code IndexListTask}
  */
@@ -31,41 +32,36 @@ public class IndexListTaskArg extends IgniteDataTransferObject {
     /** */
     private static final long serialVersionUID = 0L;
 
+    /** Groups names. */
+    private Set<String> groups;
+
+    /** Caches names. */
+    private Set<String> caches;
+
+    /** Indexes names. */
+    private Set<String> indexes;
+
     /**
      * Empty constructor required for Serializable.
      */
     public IndexListTaskArg() {
     }
 
-    /** */
-    Set<String> nodeIds;
-
-    /** */
-    Set<String> groups;
-
-    /** */
-    Set<String> caches;
-
-    /** */
-    Set<String> indexes;
-
     /**
-     * @param nodeIds Node ids.
      * @param groups Groups.
      * @param caches Caches.
      * @param indexes Indexes.
      */
-    public IndexListTaskArg(Set<String> nodeIds, Set<String> groups, Set<String> caches, Set<String> indexes) {
-        this.nodeIds = nodeIds;
-        this.groups  = groups;
-        this.caches  = caches;
+    public IndexListTaskArg(Set<String> groups, Set<String> caches, Set<String> indexes) {
+        this.groups = groups;
+        this.caches = caches;
         this.indexes = indexes;
     }
 
     //TODO: now this shit duplicates IndexingList.CmdArgs. This can be, but not necessery. Should it be like this?
+
     /** {@inheritDoc} */
     @Override protected void writeExternalData(ObjectOutput out) throws IOException {
-        U.writeCollection(out, nodeIds);
         U.writeCollection(out, groups);
         U.writeCollection(out, caches);
         U.writeCollection(out, indexes);
@@ -74,9 +70,29 @@ public class IndexListTaskArg extends IgniteDataTransferObject {
     /** {@inheritDoc} */
     @Override
     protected void readExternalData(byte protoVer, ObjectInput in) throws IOException, ClassNotFoundException {
-        nodeIds = U.readSet(in);
-        groups  = U.readSet(in);
-        caches  = U.readSet(in);
+        groups = U.readSet(in);
+        caches = U.readSet(in);
         indexes = U.readSet(in);
+    }
+
+    /**
+     * @return Groups.
+     */
+    public Set<String> groups() {
+        return groups;
+    }
+
+    /**
+     * @return Caches.
+     */
+    public Set<String> caches() {
+        return caches;
+    }
+
+    /**
+     * @return Indexes.
+     */
+    public Set<String> indexes() {
+        return indexes;
     }
 }

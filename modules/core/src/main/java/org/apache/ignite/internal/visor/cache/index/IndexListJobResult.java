@@ -15,6 +15,44 @@
  */
 
 package org.apache.ignite.internal.visor.cache.index;
+
+import java.io.IOException;
+import java.io.ObjectInput;
+import java.io.ObjectOutput;
+import java.util.Map;
+import java.util.Set;
+import org.apache.ignite.internal.dto.IgniteDataTransferObject;
+import org.apache.ignite.internal.util.typedef.internal.U;
+
 //TODO: consider moving this to indexing module
-public class IndexListJobResult {
+public class IndexListJobResult extends IgniteDataTransferObject {
+    /** */
+    private static final long serialVersionUID = 0L;
+
+    /**
+     * Map containing cache name as key and set of index names for this cache as value.
+     */
+    private Map<String, Set<String>> indexMap;
+
+    /**
+     * Empty constructor required for Serializable.
+     */
+    public IndexListJobResult() {
+    }
+
+    /** */
+    public IndexListJobResult(Map<String, Set<String>> indexMap) {
+        this.indexMap = indexMap;
+    }
+
+    /** {@inheritDoc} */
+    @Override protected void writeExternalData(ObjectOutput out) throws IOException {
+        U.writeMap(out, indexMap);
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    protected void readExternalData(byte protoVer, ObjectInput in) throws IOException, ClassNotFoundException {
+        indexMap = U.readMap(in);
+    }
 }

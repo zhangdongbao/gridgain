@@ -162,7 +162,19 @@ public class GridCommandHandlerIndexingTest extends GridCommandHandlerClusterPer
      */
     @Test
     public void testCacheIndexList() throws Exception {
-        startGrids(2);
+        cleanPersistenceDir();
+
+        Ignite ignite = prepareGridForTest();
+        startGrid();
+
+//        Object consistId = ignite.localNode().consistentId();
+//
+//        String cls = consistId.getClass().getSimpleName();
+//        String str = consistId.toString();
+
+        //TODO: make good indexes for testing
+        //TODO: presumably done in prepareGridForTest. Just double-check it at the end.
+
 
         execute("--cache", "indexes_list");
     }

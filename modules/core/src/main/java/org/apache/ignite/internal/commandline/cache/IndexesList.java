@@ -18,9 +18,9 @@ import org.apache.ignite.internal.visor.cache.index.IndexListTaskArg;
 public class IndexesList implements Command<IndexesList.CdmArgs> {
 
     /** Exception message. */
-    public static final String CACHES_GROUPS_OR_INDEXES_WERE_SPECIFIED_MESSAGE = "Arguments " + IndexListComand.GRP_NAME
-        + ", " + IndexListComand.CACHE_NAME
-        + ", " + IndexListComand.IDX_NAME + " are mutually exclusive.";
+    public static final String CACHES_GROUPS_OR_INDEXES_WERE_SPECIFIED_MESSAGE = "Arguments " + IndexListComandArgsList.GRP_NAME
+        + ", " + IndexListComandArgsList.CACHE_NAME
+        + ", " + IndexListComandArgsList.IDX_NAME + " are mutually exclusive.";
 
     /** Command parsed arguments. */
     private CdmArgs args;
@@ -39,9 +39,9 @@ public class IndexesList implements Command<IndexesList.CdmArgs> {
 
         try (GridClient client = Command.startClient(clientCfg)) {
             //TODO: list for index names
-            IndexListTaskArg taskArg = new IndexListTaskArg(args.nodeIds, args.groups, args.caches, args.indexes);
+            IndexListTaskArg taskArg = new IndexListTaskArg(args.groups, args.caches, args.indexes);
 
-            TaskExecutor.executeTaskByNameOnNode(client, "org.apache.ignite.internal.visor.cache.index.IndexListTask", taskArg, null, clientCfg);
+            Map<String, Set<String>> taskRes = TaskExecutor.executeTaskByNameOnNode(client, "org.apache.ignite.internal.visor.cache.index.IndexListTask", taskArg, null, clientCfg);
 
             //TODO: list for cache groups
             //TODO: list for cache names
@@ -72,7 +72,7 @@ public class IndexesList implements Command<IndexesList.CdmArgs> {
         while (argIterator.hasNextSubArg()) {
             String nextArg = argIterator.nextArg("");
 
-            IndexListComand arg = CommandArgUtils.of(nextArg, IndexListComand.class);
+            IndexListComandArgsList arg = CommandArgUtils.of(nextArg, IndexListComandArgsList.class);
 
             switch (arg) {
                 case NODE_ID:
@@ -110,10 +110,14 @@ public class IndexesList implements Command<IndexesList.CdmArgs> {
             groups = argIterator.parseStringSet(nextArg);
         }
 
+
+
         args = new CdmArgs(nodeIds, groups, caches, indexes);
     }
 
-    private enum IndexListComand implements CommandArg {
+    //TODO: for fuck sake there are too many args.
+    //TODO: This must be refactored in future.
+    private enum IndexListComandArgsList implements CommandArg {
         /** */
         NODE_ID("--node-id"),
 
@@ -130,7 +134,7 @@ public class IndexesList implements Command<IndexesList.CdmArgs> {
         private final String name;
 
         /** */
-        IndexListComand(String name) {
+        IndexListComandArgsList(String name) {
             this.name = name;
         }
 
