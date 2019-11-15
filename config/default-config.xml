@@ -23,6 +23,11 @@
     <bean class="org.apache.ignite.configuration.IgniteConfiguration">
         <property name="igniteInstanceName" value="node-with-gmc-agent"/>
 
+        <!-- Enable tracing. -->
+        <property name="tracingSpi">
+            <bean class="org.apache.ignite.spi.tracing.opencensus.OpenCensusTracingSpi"/>
+        </property>
+
         <!-- Enabled persistence for demo.  -->
         <property name="dataStorageConfiguration">
             <bean class="org.apache.ignite.configuration.DataStorageConfiguration">
