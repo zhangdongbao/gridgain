@@ -210,6 +210,9 @@ namespace ignite
             {
                 AddStatusRecord(SqlState::S08003_NOT_CONNECTED, "Connection is not open.");
 
+                // Disconnect should never return ERROR as doing so results in Windows Driver Manager
+                // invalidating connection instance, and subsequent SQLFreeHandle calls are not being
+                // passed to ODBC driver thus leading to leakage of the connection object instance.
                 return SqlResult::AI_SUCCESS_WITH_INFO;
             }
 
