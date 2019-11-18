@@ -32,6 +32,7 @@ import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.Gri
 import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionsExchangeFuture;
 import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPreloaderAssignments;
 import org.apache.ignite.internal.util.future.GridCompoundFuture;
+import org.apache.ignite.internal.util.future.GridFutureAdapter;
 import org.apache.ignite.lang.IgnitePredicate;
 import org.jetbrains.annotations.Nullable;
 
@@ -65,11 +66,10 @@ public interface GridCachePreloader {
     public void onInitialExchangeComplete(@Nullable Throwable err);
 
     /**
-     * @param rebTopVer Previous rebalance topology version or {@code NONE} if there is no info.
      * @param exchFut Completed exchange future.
      * @return {@code True} if rebalance should be started (previous will be interrupted).
      */
-    public boolean rebalanceRequired(AffinityTopologyVersion rebTopVer, GridDhtPartitionsExchangeFuture exchFut);
+    public boolean rebalanceRequired(GridDhtPartitionsExchangeFuture exchFut);
 
     /**
      * @param exchId Exchange ID.
@@ -93,7 +93,8 @@ public interface GridCachePreloader {
         boolean forcePreload,
         long rebalanceId,
         Runnable next,
-        @Nullable GridCompoundFuture<Boolean, Boolean> forcedRebFut);
+        @Nullable GridCompoundFuture<Boolean, Boolean> forcedRebFut,
+        GridFutureAdapter commonRebalanceFuture);
 
     /**
      * @param p Preload predicate.

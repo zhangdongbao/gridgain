@@ -18,7 +18,9 @@ package org.apache.ignite.internal.processors.cache.distributed.dht.preloader;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -36,21 +38,26 @@ import org.apache.ignite.internal.processors.cache.GridCacheEntryInfo;
 import org.apache.ignite.internal.processors.cache.GridCachePreloaderAdapter;
 import org.apache.ignite.internal.processors.cache.KeyCacheObject;
 import org.apache.ignite.internal.processors.cache.distributed.dht.GridDhtFuture;
-import org.apache.ignite.internal.processors.cache.distributed.dht.topology.GridDhtPartitionTopology;
 import org.apache.ignite.internal.processors.cache.distributed.dht.atomic.GridNearAtomicAbstractUpdateRequest;
+import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionDemander.RebalanceFuture;
 import org.apache.ignite.internal.processors.cache.distributed.dht.topology.GridDhtLocalPartition;
+import org.apache.ignite.internal.processors.cache.distributed.dht.topology.GridDhtPartitionTopology;
 import org.apache.ignite.internal.processors.txdr.TransactionalDrProcessor;
 import org.apache.ignite.internal.util.future.GridCompoundFuture;
 import org.apache.ignite.internal.util.future.GridFinishedFuture;
 import org.apache.ignite.internal.util.future.GridFutureAdapter;
 import org.apache.ignite.internal.util.lang.GridPlainRunnable;
 import org.apache.ignite.internal.util.typedef.CI1;
+import org.apache.ignite.internal.util.typedef.internal.CU;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.lang.IgnitePredicate;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import static org.apache.ignite.events.EventType.EVT_CACHE_REBALANCE_PART_DATA_LOST;
 import static org.apache.ignite.events.EventType.EVT_CACHE_REBALANCE_PART_UNLOADED;
+import static org.apache.ignite.events.EventType.EVT_NODE_FAILED;
+import static org.apache.ignite.events.EventType.EVT_NODE_LEFT;
 import static org.apache.ignite.internal.processors.cache.distributed.dht.topology.GridDhtPartitionState.EVICTED;
 import static org.apache.ignite.internal.processors.cache.distributed.dht.topology.GridDhtPartitionState.LOST;
 import static org.apache.ignite.internal.processors.cache.distributed.dht.topology.GridDhtPartitionState.MOVING;
@@ -160,9 +167,8 @@ public class GridDhtPreloader extends GridCachePreloaderAdapter {
     }
 
     /** {@inheritDoc} */
-    @Override public boolean rebalanceRequired(AffinityTopologyVersion rebTopVer,
-        GridDhtPartitionsExchangeFuture exchFut) {
-        if (ctx.kernalContext().clientNode() || rebTopVer.equals(AffinityTopologyVersion.NONE))
+    @Override public boolean rebalanceRequired(GridDhtPartitionsExchangeFuture exchFut) {
+        if (ctx.kernalContext().clientNode())
             return false; // No-op.
 
         if (exchFut.resetLostPartitionFor(grp.cacheOrGroupName()))
@@ -170,6 +176,19 @@ public class GridDhtPreloader extends GridCachePreloaderAdapter {
 
         if (exchFut.localJoinExchange())
             return true; // Required, can have outdated updSeq partition counter if node reconnects.
+
+        if (isBltNodeLeft(exchFut))
+            return true;
+
+        RebalanceFuture rebalanceFuture = (RebalanceFuture)rebalanceFuture();
+
+        if (rebalanceFuture.isInitial())
+            return true;
+
+        if (rebalanceFuture.isDone() && !rebalanceFuture.result())
+            return true; // Required, previous rebalance cancelled.
+
+        AffinityTopologyVersion rebTopVer = rebalanceFuture.topologyVersion();
 
         TransactionalDrProcessor txDrProc = ctx.kernalContext().txDr();
 
@@ -186,13 +205,34 @@ public class GridDhtPreloader extends GridCachePreloaderAdapter {
 
         final IgniteInternalFuture<Boolean> rebFut = rebalanceFuture();
 
-        if (rebFut.isDone() && !rebFut.result())
-            return true; // Required, previous rebalance cancelled.
+        Set<Integer> previousParts = localParts(rebTopVer);
 
-        AffinityTopologyVersion lastAffChangeTopVer =
-            ctx.exchange().lastAffinityChangedTopologyVersion(exchFut.topologyVersion());
+        Set<Integer> parts = localParts(exchFut.topologyVersion());
 
-        return lastAffChangeTopVer.after(rebTopVer);
+        return (parts.size() != previousParts.size()) || !parts.equals(previousParts);
+    }
+
+    /**
+     * @param exchFut Exchange future.
+     * @return True means baseline node left cluster, false otherwise.
+     */
+    private boolean isBltNodeLeft(GridDhtPartitionsExchangeFuture exchFut) {
+        return (exchFut.firstEvent().type() == EVT_NODE_LEFT
+            || exchFut.firstEvent().type() == EVT_NODE_FAILED)
+            && CU.baselineNode(exchFut.firstEvent().eventNode(), ctx.kernalContext().state().clusterState());
+    }
+
+    /**
+     * @param rebTopVer Topology version.
+     * @return Set of ids of local partitions.
+     */
+    @NotNull private Set<Integer> localParts(AffinityTopologyVersion rebTopVer) {
+        AffinityAssignment previousAff = grp.affinity().cachedAffinity(rebTopVer);
+
+        Set<Integer> previousParts = new HashSet<>(previousAff.primaryPartitions(ctx.localNodeId()));
+
+        previousParts.addAll(previousAff.backupPartitions(ctx.localNodeId()));
+        return previousParts;
     }
 
     /** {@inheritDoc} */
@@ -408,9 +448,10 @@ public class GridDhtPreloader extends GridCachePreloaderAdapter {
         boolean forceRebalance,
         long rebalanceId,
         Runnable next,
-        @Nullable GridCompoundFuture<Boolean, Boolean> forcedRebFut
+        @Nullable GridCompoundFuture<Boolean, Boolean> forcedRebFut,
+        GridFutureAdapter commonRebalanceFuture
     ) {
-        return demander.addAssignments(assignments, forceRebalance, rebalanceId, next, forcedRebFut);
+        return demander.addAssignments(assignments, forceRebalance, rebalanceId, next, forcedRebFut, commonRebalanceFuture);
     }
 
     /**
