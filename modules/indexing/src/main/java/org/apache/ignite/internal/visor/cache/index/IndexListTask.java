@@ -16,27 +16,30 @@
 
 package org.apache.ignite.internal.visor.cache.index;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
+import java.util.Arrays;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import org.apache.ignite.IgniteException;
-import org.apache.ignite.internal.processors.cache.CacheGroupContext;
 import org.apache.ignite.internal.processors.cache.GridCacheContext;
 import org.apache.ignite.internal.processors.query.GridQueryProcessor;
 import org.apache.ignite.internal.processors.query.GridQueryTypeDescriptor;
 import org.apache.ignite.internal.processors.query.h2.IgniteH2Indexing;
 import org.apache.ignite.internal.processors.query.h2.database.H2TreeIndexBase;
 import org.apache.ignite.internal.processors.query.h2.opt.GridH2Table;
-import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.visor.VisorJob;
 import org.apache.ignite.internal.visor.VisorOneNodeTask;
 import org.h2.index.Index;
+import org.h2.table.Column;
 import org.jetbrains.annotations.Nullable;
 
-public class IndexListTask extends VisorOneNodeTask<IndexListTaskArg, Map<String, Set<String>>> {
+import static org.apache.ignite.internal.visor.cache.index.IndexListInfoContainer.EMPTY_GROUP_NAME;
+
+/**
+ * Task that collects indexes information.
+ */
+public class IndexListTask extends VisorOneNodeTask<IndexListTaskArg, Set<IndexListInfoContainer>> {
     /** */
     private static final long serialVersionUID = 0L;
 
@@ -46,7 +49,7 @@ public class IndexListTask extends VisorOneNodeTask<IndexListTaskArg, Map<String
     }
 
     /** */
-    private static class IndexListJob extends VisorJob<IndexListTaskArg, Map<String, Set<String>>> {
+    private static class IndexListJob extends VisorJob<IndexListTaskArg, Set<IndexListInfoContainer>> {
         /** */
         private static final long serialVersionUID = 0L;
 
@@ -61,67 +64,67 @@ public class IndexListTask extends VisorOneNodeTask<IndexListTaskArg, Map<String
         }
 
         /** {@inheritDoc} */
-        @Override protected Map<String, Set<String>> run(@Nullable IndexListTaskArg arg) throws IgniteException {
-            Set<String> idxNames = arg.indexes();
-            Set<String> grpNames = arg.groups();
-            Set<String> cacheNames = arg.caches();
+        @Override protected Set<IndexListInfoContainer> run(@Nullable IndexListTaskArg arg) throws IgniteException {
+            if (arg == null)
+                throw new IgniteException("IndexListTaskArg is null");
 
-            Map<String, Set<String>> idxMap = new HashMap<>();
+            String indexesRegEx = arg.indexesRegEx();
+            String groupsRegEx = arg.groupsRegEx();
+            String cachesRegEx = arg.cachesRegEx();
 
-            //TODO: doing actual work here, but this can go to separate closure;
-            Collection<CacheGroupContext> cacheGroups = ignite.context().cache().cacheGroups();
+            Set<IndexListInfoContainer> idxInfos = new HashSet<>();
 
             GridQueryProcessor qry = ignite.context().query();
 
             IgniteH2Indexing indexing = (IgniteH2Indexing)qry.getIndexing();
 
-            for (CacheGroupContext grpCtx: cacheGroups) {
-                //TODO: support regex
-                if (grpNames != null && !grpNames.contains(grpCtx.name()))
+            for (GridCacheContext ctx : ignite.context().cache().context().cacheContexts()) {
+                final String cacheName = ctx.name();
+
+                final String grpName = ctx.config().getGroupName();
+                final String grpNameToValidate = grpName == null ? EMPTY_GROUP_NAME : grpName;
+
+                if (!isNameValid(groupsRegEx, grpNameToValidate))
                     continue;
 
-                for (GridCacheContext ctx : grpCtx.caches()) {
-                    final String cacheName = ctx.name();
+                if (!isNameValid(cachesRegEx, cacheName))
+                    continue;
 
-                    //TODO: support regex
-                    if (cacheNames != null && !cacheNames.contains(cacheName))
+                for (GridQueryTypeDescriptor type : qry.types(cacheName)) {
+                    GridH2Table gridH2Tbl = indexing.schemaManager().dataTable(cacheName, type.tableName());
+
+                    if (gridH2Tbl == null)
                         continue;
 
-                    Collection<GridQueryTypeDescriptor> types = qry.types(cacheName);
+                    for (Index idx : gridH2Tbl.getIndexes()) {
+                        if (!isNameValid(indexesRegEx, idx.getName()))
+                            continue;
 
-                    // TODO: why isEmpty??
-                    if (!F.isEmpty(types)) {
-                        for (GridQueryTypeDescriptor type : types) {
-                            GridH2Table gridH2Tbl = indexing.schemaManager().dataTable(cacheName, type.tableName());
-
-                            if (gridH2Tbl == null)
-                                continue;
-
-                            ArrayList<Index> indexes = gridH2Tbl.getIndexes();
-
-                            for (Index idx : indexes) {
-                                //TODO: support regex
-                                if (idxNames != null && !idxNames.contains(idx.getName()))
-                                    continue;
-
-                                if (idx instanceof H2TreeIndexBase) {
-                                    //TODO: does this shit actually work?
-                                    Set<String> cacheIndexes = idxMap.get(cacheName);
-
-                                    if (cacheIndexes == null) {
-                                        cacheIndexes = new HashSet<>();
-                                        idxMap.put(cacheName, cacheIndexes);
-                                    }
-                                    else
-                                        cacheIndexes.add(idx.getName());
-                                }
-                            }
-                        }
+                        if (idx instanceof H2TreeIndexBase)
+                            idxInfos.add(constructContainer(ctx, idx));
                     }
                 }
             }
 
-            return idxMap;
+            return idxInfos;
+        }
+
+        /** */
+        private static IndexListInfoContainer constructContainer(GridCacheContext ctx, Index idx) {
+            return new IndexListInfoContainer(
+                ctx,
+                idx.getName(),
+                Arrays.stream(idx.getColumns()).map(Column::getName).collect(Collectors.toList()),
+                idx.getTable().getName()
+            );
+        }
+
+        /** */
+        private static boolean isNameValid(String regEx, String name) {
+            if (regEx == null || regEx.equalsIgnoreCase(name))
+                return true;
+
+            return Pattern.compile(regEx.toLowerCase()).matcher(name.toLowerCase()).find();
         }
     }
 }

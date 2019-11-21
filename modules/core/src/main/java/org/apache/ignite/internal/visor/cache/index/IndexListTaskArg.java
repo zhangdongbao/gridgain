@@ -19,80 +19,76 @@ package org.apache.ignite.internal.visor.cache.index;
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
-import java.util.Set;
 import org.apache.ignite.internal.dto.IgniteDataTransferObject;
 import org.apache.ignite.internal.util.typedef.internal.U;
 
-//TODO: consider moving this to indexing module
-
 /**
- * Argument object for {@code IndexListTask}
+ * Argument object for {@code CacheIndexListTask}
  */
 public class IndexListTaskArg extends IgniteDataTransferObject {
     /** */
     private static final long serialVersionUID = 0L;
 
     /** Groups names. */
-    private Set<String> groups;
+    private String groupsRegEx;
 
     /** Caches names. */
-    private Set<String> caches;
+    private String cachesRegEx;
 
     /** Indexes names. */
-    private Set<String> indexes;
+    private String indexesRegEx;
 
     /**
      * Empty constructor required for Serializable.
      */
     public IndexListTaskArg() {
+        // No-op.
     }
 
     /**
-     * @param groups Groups.
-     * @param caches Caches.
-     * @param indexes Indexes.
+     * @param groupsRegEx Groups.
+     * @param cachesRegEx Caches.
+     * @param indexesRegEx Indexes.
      */
-    public IndexListTaskArg(Set<String> groups, Set<String> caches, Set<String> indexes) {
-        this.groups = groups;
-        this.caches = caches;
-        this.indexes = indexes;
+    public IndexListTaskArg(String groupsRegEx, String cachesRegEx, String indexesRegEx) {
+        this.groupsRegEx = groupsRegEx;
+        this.cachesRegEx = cachesRegEx;
+        this.indexesRegEx = indexesRegEx;
     }
-
-    //TODO: now this shit duplicates IndexingList.CmdArgs. This can be, but not necessery. Should it be like this?
 
     /** {@inheritDoc} */
     @Override protected void writeExternalData(ObjectOutput out) throws IOException {
-        U.writeCollection(out, groups);
-        U.writeCollection(out, caches);
-        U.writeCollection(out, indexes);
+        U.writeString(out, groupsRegEx);
+        U.writeString(out, cachesRegEx);
+        U.writeString(out, indexesRegEx);
     }
 
     /** {@inheritDoc} */
     @Override
     protected void readExternalData(byte protoVer, ObjectInput in) throws IOException, ClassNotFoundException {
-        groups = U.readSet(in);
-        caches = U.readSet(in);
-        indexes = U.readSet(in);
+        groupsRegEx = U.readString(in);
+        cachesRegEx = U.readString(in);
+        indexesRegEx = U.readString(in);
     }
 
     /**
      * @return Groups.
      */
-    public Set<String> groups() {
-        return groups;
+    public String groupsRegEx() {
+        return groupsRegEx;
     }
 
     /**
      * @return Caches.
      */
-    public Set<String> caches() {
-        return caches;
+    public String cachesRegEx() {
+        return cachesRegEx;
     }
 
     /**
      * @return Indexes.
      */
-    public Set<String> indexes() {
-        return indexes;
+    public String indexesRegEx() {
+        return indexesRegEx;
     }
 }

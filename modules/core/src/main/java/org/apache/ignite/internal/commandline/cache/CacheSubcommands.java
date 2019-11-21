@@ -73,7 +73,7 @@ public enum CacheSubcommands {
     /**
      * Index list.
      */
-    INDEX_LIST("indexes_list", IndexesListArg.class, new IndexesList());
+    INDEX_LIST("indexes_list", IndexesListArg.class, new CacheIndexesList());
 
 
     /** Enumerated values. */
