@@ -98,8 +98,10 @@ fi
 # ADD YOUR/CHANGE ADDITIONAL OPTIONS HERE
 #
 if [ -z "$JVM_OPTS" ] ; then
-    JVM_OPTS="-Xms1g -Xmx1g -server -XX:MaxMetaspaceSize=256m -DIGNITE_DISTRIBUTED_META_STORAGE_FEATURE=true -DIGNITE_CLUSTER_ID_AND_TAG_FEATURE=true"
+    JVM_OPTS="-Xms1g -Xmx1g -server -XX:MaxMetaspaceSize=256m"
 fi
+
+JVM_OPTS="${JVM_OPTS} -DIGNITE_DISTRIBUTED_META_STORAGE_FEATURE=true -DIGNITE_CLUSTER_ID_AND_TAG_FEATURE=true"
 
 #
 # Uncomment the following GC settings if you see spikes in your throughput due to Garbage Collection.
