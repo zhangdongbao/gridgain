@@ -114,12 +114,15 @@ public class CacheIndexesList implements Command<CacheIndexesList.Arguments> {
 
             IndexListComandArg arg = CommandArgUtils.of(nextArg, IndexListComandArg.class);
 
+            if (arg == null)
+                throw new IllegalArgumentException("Unknown argument: " + nextArg);
+
             switch (arg) {
                 case NODE_ID:
                     if (nodeId != null)
                         throw new IllegalArgumentException(arg.argName() + " arg specified twice.");
 
-                    nodeId = UUID.fromString(nextArg);
+                    nodeId = UUID.fromString(argIterator.nextArg("Failed to read node id"));
 
                     break;
 
