@@ -28,8 +28,8 @@ import org.apache.ignite.internal.client.GridClientConfiguration;
 import org.apache.ignite.internal.commandline.Command;
 import org.apache.ignite.internal.commandline.CommandArgIterator;
 import org.apache.ignite.internal.commandline.TaskExecutor;
-import org.apache.ignite.internal.commandline.argument.CommandArg;
 import org.apache.ignite.internal.commandline.argument.CommandArgUtils;
+import org.apache.ignite.internal.commandline.cache.argument.IndexListComandArg;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.internal.visor.cache.index.IndexListInfoContainer;
@@ -38,6 +38,10 @@ import org.apache.ignite.internal.visor.cache.index.IndexListTaskArg;
 import static org.apache.ignite.internal.commandline.CommandLogger.optional;
 import static org.apache.ignite.internal.commandline.cache.CacheCommands.usageCache;
 import static org.apache.ignite.internal.commandline.cache.CacheSubcommands.INDEX_LIST;
+import static org.apache.ignite.internal.commandline.cache.argument.IndexListComandArg.CACHE_NAME;
+import static org.apache.ignite.internal.commandline.cache.argument.IndexListComandArg.GRP_NAME;
+import static org.apache.ignite.internal.commandline.cache.argument.IndexListComandArg.IDX_NAME;
+import static org.apache.ignite.internal.commandline.cache.argument.IndexListComandArg.NODE_ID;
 
 /**
  * Cache subcommand that allows to show indexes.
@@ -49,13 +53,13 @@ public class CacheIndexesList implements Command<CacheIndexesList.Arguments> {
 
         Map<String, String> map = U.newLinkedHashMap(16);
 
-        map.put(IndexListComandArgs.NODE_ID.argName() + "nodeId",
+        map.put(NODE_ID.argName() + "nodeId",
             "Specify node for job execution. If not specified explicitly, node will be chosen by grid");
-        map.put(IndexListComandArgs.GRP_NAME.argName() + "regExp",
+        map.put(GRP_NAME.argName() + "regExp",
             "Regular expression allowing filtering by cache group name");
-        map.put(IndexListComandArgs.CACHE_NAME.argName() + "regExp",
+        map.put(CACHE_NAME.argName() + "regExp",
             "Regular expression allowing filtering by cache name");
-        map.put(IndexListComandArgs.IDX_NAME.argName() + "regExp",
+        map.put(IDX_NAME.argName() + "regExp",
             "Regular expression allowing filtering by index name");
 
         usageCache(
@@ -63,10 +67,10 @@ public class CacheIndexesList implements Command<CacheIndexesList.Arguments> {
             INDEX_LIST,
             desc,
             map,
-            optional(IndexListComandArgs.NODE_ID),
-            optional(IndexListComandArgs.GRP_NAME),
-            optional(IndexListComandArgs.CACHE_NAME),
-            optional(IndexListComandArgs.IDX_NAME)
+            optional(NODE_ID),
+            optional(GRP_NAME),
+            optional(CACHE_NAME),
+            optional(IDX_NAME)
         );
     }
 
@@ -108,7 +112,7 @@ public class CacheIndexesList implements Command<CacheIndexesList.Arguments> {
         while (argIterator.hasNextSubArg()) {
             String nextArg = argIterator.nextArg("");
 
-            IndexListComandArgs arg = CommandArgUtils.of(nextArg, IndexListComandArgs.class);
+            IndexListComandArg arg = CommandArgUtils.of(nextArg, IndexListComandArg.class);
 
             switch (arg) {
                 case NODE_ID:
@@ -140,39 +144,6 @@ public class CacheIndexesList implements Command<CacheIndexesList.Arguments> {
         }
 
         args = new Arguments(nodeId, groupsRegEx, cachesRegEx, indexesRegEx);
-    }
-
-    /** */
-    private enum IndexListComandArgs implements CommandArg {
-        /** */
-        NODE_ID("--node-id"),
-
-        /** */
-        GRP_NAME("--group-name"),
-
-        /** */
-        CACHE_NAME("--cache-name"),
-
-        /** */
-        IDX_NAME("--index-name");
-
-        /** Option name. */
-        private final String name;
-
-        /** */
-        IndexListComandArgs(String name) {
-            this.name = name;
-        }
-
-        /** {@inheritDoc} */
-        @Override public String argName() {
-            return name;
-        }
-
-        /** {@inheritDoc} */
-        @Override public String toString() {
-            return name;
-        }
     }
 
     /**

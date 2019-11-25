@@ -18,22 +18,35 @@ package org.apache.ignite.internal.commandline.cache.argument;
 
 import org.apache.ignite.internal.commandline.argument.CommandArg;
 
-public enum IndexesListArg implements CommandArg {
-    ;
-    /** Argument name. */
+/** */
+public enum IndexListComandArg implements CommandArg {
+    /** */
+    NODE_ID("--node-id"),
+
+    /** */
+    GRP_NAME("--group-name"),
+
+    /** */
+    CACHE_NAME("--cache-name"),
+
+    /** */
+    IDX_NAME("--index-name");
+
+    /** Option name. */
     private final String name;
 
-    /**
-     * @param name Argument name.
-     */
-    IndexesListArg(String name) {
+    /** */
+    IndexListComandArg(String name) {
         this.name = name;
     }
 
-    /**
-     * @return Option name.
-     */
+    /** {@inheritDoc} */
     @Override public String argName() {
+        return name;
+    }
+
+    /** {@inheritDoc} */
+    @Override public String toString() {
         return name;
     }
 }
