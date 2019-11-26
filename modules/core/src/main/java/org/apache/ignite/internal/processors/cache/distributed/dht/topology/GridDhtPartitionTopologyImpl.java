@@ -1099,7 +1099,7 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
 
             return new GridDhtPartitionMap(ctx.localNodeId(),
                 updateSeq.get(),
-                locPartMap != null ? locPartMap.topologyVersion() : readyTopVer,
+                locPartMap != null && !AffinityTopologyVersion.NONE.equals(AffinityTopologyVersion.NONE) ? locPartMap.topologyVersion() : readyTopVer,
                 map,
                 true);
         }

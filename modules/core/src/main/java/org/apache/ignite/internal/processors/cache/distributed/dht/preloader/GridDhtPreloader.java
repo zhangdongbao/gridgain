@@ -196,9 +196,8 @@ public class GridDhtPreloader extends GridCachePreloaderAdapter {
             return true;
 
         if (!grp.affinity().cachedVersions().contains(rebTopVer)) {
-            assert rebTopVer.compareTo(grp.localStartVersion()) <= 0 :
-                "Empty history allowed only for newly started cache group [rebTopVer=" + rebTopVer +
-                    ", localStartTopVer=" + grp.localStartVersion() + ']';
+            if (rebTopVer.compareTo(grp.localStartVersion()) > 0)
+                log.warning("Affinity history is exceed, rebalance should be try triggered [grp=" + grp.cacheOrGroupName() + "].");
 
             return true; // Required, since no history info available.
         }
