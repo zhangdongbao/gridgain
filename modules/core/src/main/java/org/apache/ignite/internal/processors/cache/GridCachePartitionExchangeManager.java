@@ -3418,11 +3418,6 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
                         if (forcedRebFut != null)
                             forcedRebFut.markInitialized();
 
-                        if (assignsCancelled || hasPendingExchange()) {
-                            U.log(log, "Skipping rebalancing (obsolete exchange ID) " +
-                                "[top=" + resVer + ", evt=" + exchId.discoveryEventName() +
-                                ", node=" + exchId.nodeId() + ']');
-                        }
                         else if (r != null) {
                             Collections.reverse(rebList);
 

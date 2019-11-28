@@ -349,7 +349,8 @@ public class GridDhtPartitionDemander {
 
             if (assignments.cancelled()) { // Pending exchange.
                 if (log.isDebugEnabled())
-                    log.debug("Rebalancing skipped due to cancelled assignments.");
+                    log.debug("Rebalancing skipped due to cancelled assignments [grp=" + grp.cacheOrGroupName() +
+                        ", mode=" + grp.config().getRebalanceMode() + ", topVer=" + assignments.topologyVersion() + ']');
 
                 fut.onDone(false);
 
@@ -360,7 +361,8 @@ public class GridDhtPartitionDemander {
 
             if (assignments.isEmpty()) { // Nothing to rebalance.
                 if (log.isDebugEnabled())
-                    log.debug("Rebalancing skipped due to empty assignments.");
+                    log.debug("Rebalancing skipped due to empty assignments [grp=" + grp.cacheOrGroupName() +
+                        ", mode=" + grp.config().getRebalanceMode() + ", topVer=" + assignments.topologyVersion() + ']');
 
                 fut.onDone(true);
 
