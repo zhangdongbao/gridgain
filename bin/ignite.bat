@@ -172,10 +172,12 @@ if "%JMX_PORT%" == "" (
 ::
 "%JAVA_HOME%\bin\java.exe" -version 2>&1 | findstr "1\.[7]\." > nul
 if %ERRORLEVEL% equ 0 (
-    if "%JVM_OPTS%" == "" set JVM_OPTS=-Xms1g -Xmx1g -server -XX:MaxPermSize=256m -DIGNITE_DISTRIBUTED_META_STORAGE_FEATURE=true -DIGNITE_CLUSTER_ID_AND_TAG_FEATURE=true
+    if "%JVM_OPTS%" == "" set JVM_OPTS=-Xms1g -Xmx1g -server -XX:MaxPermSize=256m
 ) else (
-    if "%JVM_OPTS%" == "" set JVM_OPTS=-Xms1g -Xmx1g -server -XX:MaxMetaspaceSize=256m -DIGNITE_DISTRIBUTED_META_STORAGE_FEATURE=true -DIGNITE_CLUSTER_ID_AND_TAG_FEATURE=true
+    if "%JVM_OPTS%" == "" set JVM_OPTS=-Xms1g -Xmx1g -server -XX:MaxMetaspaceSize=256m
 )
+
+JVM_OPTS=%JVM_OPTS% -DIGNITE_DISTRIBUTED_META_STORAGE_FEATURE=true -DIGNITE_CLUSTER_ID_AND_TAG_FEATURE=true
 
 ::
 :: Uncomment the following GC settings if you see spikes in your throughput due to Garbage Collection.
