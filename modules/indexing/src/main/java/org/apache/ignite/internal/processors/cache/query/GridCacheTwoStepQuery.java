@@ -49,6 +49,10 @@ public class GridCacheTwoStepQuery {
     private final boolean distributedJoins;
 
     /** */
+    //TODO: GG-21676: make final.
+    private boolean replicatedOnly;
+
+    /** */
     private final boolean skipMergeTbl;
 
     /** */
@@ -99,7 +103,6 @@ public class GridCacheTwoStepQuery {
         this.paramsCnt = paramsCnt;
         this.tbls = tbls;
         this.rdc = rdc;
-        this.mapQrys = F.isEmpty(mapQrys) ? Collections.emptyList() : mapQrys;
         this.skipMergeTbl = skipMergeTbl;
         this.explain = explain;
         this.distributedJoins = distributedJoins;
@@ -107,6 +110,24 @@ public class GridCacheTwoStepQuery {
         this.cacheIds = cacheIds;
         this.mvccEnabled = mvccEnabled;
         this.locSplit = locSplit;
+
+        if (F.isEmpty(mapQrys))
+            this.mapQrys = Collections.emptyList();
+        else {
+            this.mapQrys = mapQrys;
+
+            boolean replicatedOnly = true;
+
+            for (GridCacheSqlQuery mapQry : mapQrys) {
+                if (mapQry.isPartitioned()) {
+                    replicatedOnly = false;
+
+                    break;
+                }
+            }
+
+            this.replicatedOnly = replicatedOnly;
+        }
     }
 
     /**
@@ -138,12 +159,7 @@ public class GridCacheTwoStepQuery {
     public boolean isReplicatedOnly() {
         assert !mapQrys.isEmpty();
 
-        for (GridCacheSqlQuery mapQry : mapQrys) {
-            if (mapQry.isPartitioned())
-                return false;
-        }
-
-        return true;
+        return replicatedOnly;
     }
 
     /**
