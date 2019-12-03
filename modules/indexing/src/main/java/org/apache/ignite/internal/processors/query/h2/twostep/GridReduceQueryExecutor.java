@@ -401,13 +401,9 @@ public class GridReduceQueryExecutor {
                 // Copy queries here because node ID will be changed below.
                 for (GridCacheSqlQuery mapQry : qry.mapQueries())
                     mapQueries.add(mapQry.copy());
-
-                if (qry.explain()) {
-                    for (GridCacheSqlQuery mapQry : mapQueries)
-                        mapQry.query("EXPLAIN " + mapQry.query());
-                }
             }
         }
+
         final boolean skipMergeTbl = !qry.explain() && qry.skipMergeTable() || singlePartMode;
 
         final int segmentsPerIndex = qry.explain() || qry.isReplicatedOnly() ? 1 :
@@ -488,6 +484,16 @@ public class GridReduceQueryExecutor {
                         throw new CacheException("Query was cancelled, client node disconnected.",
                             new IgniteClientDisconnectedException(ctx.cluster().clientReconnectFuture(),
                                 "Client node disconnected."));
+                    }
+
+                    List<GridCacheSqlQuery> mapQrys = mapQueries;
+
+                    if (qry.explain()) {
+                        mapQrys = new ArrayList<>(mapQueries.size());
+
+                        for (GridCacheSqlQuery mapQry : mapQueries)
+                            mapQrys.add(new GridCacheSqlQuery(singlePartMode ? mapQry.query() : "EXPLAIN " + mapQry.query())
+                                .parameterIndexes(mapQry.parameterIndexes()));
                     }
 
                     final long qryReqId0 = qryReqId;
