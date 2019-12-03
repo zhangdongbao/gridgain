@@ -100,7 +100,6 @@ import static org.apache.ignite.internal.processors.cache.mvcc.MvccUtils.checkAc
 import static org.apache.ignite.internal.processors.cache.mvcc.MvccUtils.tx;
 import static org.apache.ignite.internal.processors.cache.query.GridCacheSqlQuery.EMPTY_PARAMS;
 import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlQuerySplitter.mergeTableIdentifier;
-import static org.apache.ignite.internal.processors.query.h2.twostep.msg.GridH2QueryRequest.setDataPageScanEnabled;
 
 /**
  * Reduce query executor.
@@ -274,7 +273,7 @@ public class GridReduceQueryExecutor {
 
                     try {
                         GridQueryNextPageRequest msg0 = new GridQueryNextPageRequest(qryReqId, qry, seg, pageSize,
-                            (byte)setDataPageScanEnabled(0, r.isDataPageScanEnabled()));
+                            (byte)GridH2QueryRequest.setDataPageScanEnabled(0, r.isDataPageScanEnabled()));
 
                         if (node.isLocal())
                             h2.mapQueryExecutor().onNextPageRequest(node, msg0);
@@ -403,29 +402,26 @@ public class GridReduceQueryExecutor {
         ReduceQueryRun lastRun = null;
 
         for (int attempt = 0;; attempt++) {
-            try {
-                cancel.checkCancelled();
-            }
-            catch (QueryCancelledException cancelEx) {
-                throw new CacheException("Failed to run reduce query locally. " + cancelEx.getMessage(),  cancelEx);
-            }
-
-            if (attempt > 0 && retryTimeout > 0 && (U.currentTimeMillis() - startTime > retryTimeout)) {
-                //TODO: GG-23176: To be reafactored. Retry logic looks too complicated.
-                // There are few cases when 'retryCause' can be undefined, so we should throw exception with proper message here.
-                if (lastRun == null || lastRun.retryCause() == null)
-                    throw new CacheException("Failed to map SQL query to topology during timeout: " + retryTimeout + "ms");
-
-                UUID retryNodeId = lastRun.retryNodeId();
-                String retryCause = lastRun.retryCause();
-
-                throw new CacheException("Failed to map SQL query to topology on data node [dataNodeId=" + retryNodeId +
-                    ", msg=" + retryCause + ']');
-            }
+            ensureQueryNotCancelled(cancel);
 
             if (attempt != 0) {
+                if (retryTimeout > 0 && (U.currentTimeMillis() - startTime > retryTimeout)) {
+                    //TODO: GG-23176: To be reafactored. Retry logic looks too complicated.
+                    // There are few cases when 'retryCause' can be undefined, so we should throw exception with proper message here.
+                    if (lastRun == null || lastRun.retryCause() == null)
+                        throw new CacheException("Failed to map SQL query to topology during timeout: " + retryTimeout + "ms");
+
+                    UUID retryNodeId = lastRun.retryNodeId();
+                    String retryCause = lastRun.retryCause();
+
+                    throw new CacheException("Failed to map SQL query to topology on data node [dataNodeId=" + retryNodeId +
+                        ", msg=" + retryCause + ']');
+                }
+
                 try {
                     Thread.sleep(Math.min(10_000, attempt * 10)); // Wait for exchange.
+
+                    ensureQueryNotCancelled(cancel);
                 }
                 catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
@@ -465,8 +461,6 @@ public class GridReduceQueryExecutor {
                 release = true;
 
                 try {
-                    cancel.checkCancelled();
-
                     if (ctx.clientDisconnected()) {
                         throw new CacheException("Query was cancelled, client node disconnected.",
                             new IgniteClientDisconnectedException(ctx.cluster().clientReconnectFuture(),
@@ -525,9 +519,17 @@ public class GridReduceQueryExecutor {
                     else // Send failed.
                         retry = true;
 
-                    Iterator<List<?>> resIter;
+                    if (retry) {
+                        assert r != null;
+                        lastRun = r;
 
-                    if (!retry) {
+                        if (Thread.currentThread().isInterrupted())
+                            throw new IgniteInterruptedCheckedException("Query was interrupted.");
+
+                        continue;
+                    } else {
+                        Iterator<List<?>> resIter;
+
                         if (skipMergeTbl) {
                             resIter = new ReduceIndexIterator(this,
                                 nodes,
@@ -581,18 +583,9 @@ public class GridReduceQueryExecutor {
 
                             mvccTracker = null; // To prevent callback inside finally block;
                         }
+
+                        return new GridQueryCacheObjectsIterator(resIter, h2.objectContext(), keepBinary);
                     }
-                    else {
-                        assert r != null;
-                        lastRun = r;
-
-                        if (Thread.currentThread().isInterrupted())
-                            throw new IgniteInterruptedCheckedException("Query was interrupted.");
-
-                        continue;
-                    }
-
-                    return new GridQueryCacheObjectsIterator(resIter, h2.objectContext(), keepBinary);
                 }
                 catch (IgniteCheckedException | RuntimeException e) {
                     release = true;
@@ -632,6 +625,15 @@ public class GridReduceQueryExecutor {
                 if (conn != null && (retry || release))
                     U.close(conn, log);
             }
+        }
+    }
+
+    private void ensureQueryNotCancelled(GridQueryCancel cancel) {
+        try {
+            cancel.checkCancelled();
+        }
+        catch (QueryCancelledException cancelEx) {
+            throw new CacheException("Failed to run reduce query locally. " + cancelEx.getMessage(),  cancelEx);
         }
     }
 
@@ -721,26 +723,19 @@ public class GridReduceQueryExecutor {
         return r;
     }
 
+    /**
+     * Get query flags.
+     *
+     * @return Query flags.
+     */
     private int queryFlags(GridCacheTwoStepQuery qry, boolean enforceJoinOrder, boolean lazy,
         Boolean dataPageScanEnabled) {
-        int flags = enforceJoinOrder || qry.distributedJoins() ? GridH2QueryRequest.FLAG_ENFORCE_JOIN_ORDER : 0;
-
-        // Distributed joins flag is set if it is either reald
         if (qry.distributedJoins())
-            flags |= GridH2QueryRequest.FLAG_DISTRIBUTED_JOINS;
+            enforceJoinOrder = true;
 
-        if (qry.explain())
-            flags |= GridH2QueryRequest.FLAG_EXPLAIN;
-
-        if (qry.isReplicatedOnly())
-            flags |= GridH2QueryRequest.FLAG_REPLICATED;
-
-        if (lazy)
-            flags |= GridH2QueryRequest.FLAG_LAZY;
-
-        flags = setDataPageScanEnabled(flags, dataPageScanEnabled);
-
-        return flags;
+        return GridH2QueryRequest.queryFlags(qry.distributedJoins(),
+            enforceJoinOrder, lazy, qry.isReplicatedOnly(),
+            qry.explain(), dataPageScanEnabled);
     }
 
     /**
@@ -1035,7 +1030,7 @@ public class GridReduceQueryExecutor {
      */
     private Iterator<List<?>> explainPlan(H2PooledConnection c, GridCacheTwoStepQuery qry, Object[] params)
         throws IgniteCheckedException {
-        List<List<?>> lists = new ArrayList<>();
+        List<List<?>> lists = new ArrayList<>(qry.mapQueries().size() + 1);
 
         for (int i = 0, mapQrys = qry.mapQueries().size(); i < mapQrys; i++) {
             ResultSet rs =
