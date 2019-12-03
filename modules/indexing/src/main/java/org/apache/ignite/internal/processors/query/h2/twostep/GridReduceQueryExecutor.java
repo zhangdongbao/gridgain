@@ -389,26 +389,7 @@ public class GridReduceQueryExecutor {
         if (F.isEmpty(params))
             params = EMPTY_PARAMS;
 
-
-        List<GridCacheSqlQuery> mapQueries;
-
-        {
-            if (singlePartMode)
-                mapQueries = prepareMapQueryForSinglePartition(qry, params);
-            else {
-                mapQueries = new ArrayList<>(qry.mapQueries().size());
-
-                // Copy queries here because node ID will be changed below.
-                for (GridCacheSqlQuery mapQry : qry.mapQueries()) {
-                    final GridCacheSqlQuery copy = mapQry.copy();
-
-                    mapQueries.add(copy);
-
-                    if (qry.explain())
-                        copy.query("EXPLAIN " + mapQry.query()).parameterIndexes(mapQry.parameterIndexes());
-                }
-            }
-        }
+        List<GridCacheSqlQuery> mapQueries = prepareMapQueries(qry, params, singlePartMode);
 
         final boolean skipMergeTbl = !qry.explain() && qry.skipMergeTable() || singlePartMode;
 
@@ -444,7 +425,7 @@ public class GridReduceQueryExecutor {
 
             if (attempt != 0) {
                 try {
-                    Thread.sleep(attempt * 10); // Wait for exchange.
+                    Thread.sleep(Math.min(10_000, attempt * 10)); // Wait for exchange.
                 }
                 catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
@@ -652,6 +633,30 @@ public class GridReduceQueryExecutor {
                     U.close(conn, log);
             }
         }
+    }
+
+    @NotNull private List<GridCacheSqlQuery> prepareMapQueries(GridCacheTwoStepQuery qry, Object[] params,
+        boolean singlePartMode) {
+        List<GridCacheSqlQuery> mapQueries;
+
+        {
+            if (singlePartMode)
+                mapQueries = prepareMapQueryForSinglePartition(qry, params);
+            else {
+                mapQueries = new ArrayList<>(qry.mapQueries().size());
+
+                // Copy queries here because node ID will be changed below.
+                for (GridCacheSqlQuery mapQry : qry.mapQueries()) {
+                    final GridCacheSqlQuery copy = mapQry.copy();
+
+                    mapQueries.add(copy);
+
+                    if (qry.explain())
+                        copy.query("EXPLAIN " + mapQry.query()).parameterIndexes(mapQry.parameterIndexes());
+                }
+            }
+        }
+        return mapQueries;
     }
 
     @NotNull
