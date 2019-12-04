@@ -1913,8 +1913,8 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
 
                     CacheGroupContext grp = cctx.cache().cacheGroup(grpId);
 
-                    if (grp != null &&
-                        grp.localStartVersion().compareTo(entry.getValue().topologyVersion()) > 0)
+                    if (grp != null && grp.topology().partitions(node.id()) != null &&
+                        grp.topology().partitions(node.id()).topologyVersion().compareTo(entry.getValue().topologyVersion()) > 0)
                         continue;
 
                     GridDhtPartitionTopology top = null;
