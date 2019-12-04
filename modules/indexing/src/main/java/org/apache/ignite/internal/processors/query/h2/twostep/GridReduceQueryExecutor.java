@@ -368,20 +368,9 @@ public class GridReduceQueryExecutor {
         List<Integer> cacheIds = qry.cacheIds();
 
         // Partitions are not supported for queries over all replicated caches.
-        if (parts != null) {
-            boolean replicatedOnly = true;
-
-            for (Integer cacheId : cacheIds) {
-                if (!cacheContext(cacheId).isReplicated()) {
-                    replicatedOnly = false;
-
-                    break;
-                }
-            }
-
-            if (replicatedOnly)
+        if (parts != null)
+            if (isReplicatedOnly(cacheIds))
                 throw new CacheException("Partitions are not supported for replicated caches");
-        }
 
         final boolean singlePartMode = parts != null && parts.length == 1;
 
@@ -395,9 +384,8 @@ public class GridReduceQueryExecutor {
         final int segmentsPerIndex = qry.explain() || qry.isReplicatedOnly() ? 1 :
             mapper.findFirstPartitioned(cacheIds).config().getQueryParallelism();
 
-        long retryTimeout = retryTimeout(timeoutMillis);
-
-        final long startTime = U.currentTimeMillis();
+        final long retryTimeout = retryTimeout(timeoutMillis);
+        final long qryStartTime = U.currentTimeMillis();
 
         ReduceQueryRun lastRun = null;
 
@@ -405,29 +393,9 @@ public class GridReduceQueryExecutor {
             ensureQueryNotCancelled(cancel);
 
             if (attempt != 0) {
-                if (retryTimeout > 0 && (U.currentTimeMillis() - startTime > retryTimeout)) {
-                    //TODO: GG-23176: To be reafactored. Retry logic looks too complicated.
-                    // There are few cases when 'retryCause' can be undefined, so we should throw exception with proper message here.
-                    if (lastRun == null || lastRun.retryCause() == null)
-                        throw new CacheException("Failed to map SQL query to topology during timeout: " + retryTimeout + "ms");
+                throttleOnRetry(lastRun, qryStartTime, retryTimeout, attempt);
 
-                    UUID retryNodeId = lastRun.retryNodeId();
-                    String retryCause = lastRun.retryCause();
-
-                    throw new CacheException("Failed to map SQL query to topology on data node [dataNodeId=" + retryNodeId +
-                        ", msg=" + retryCause + ']');
-                }
-
-                try {
-                    Thread.sleep(Math.min(10_000, attempt * 10)); // Wait for exchange.
-
-                    ensureQueryNotCancelled(cancel);
-                }
-                catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-
-                    throw new CacheException("Query was interrupted.", e);
-                }
+                ensureQueryNotCancelled(cancel);
             }
 
             AffinityTopologyVersion topVer = h2.readyTopologyVersion();
@@ -625,6 +593,44 @@ public class GridReduceQueryExecutor {
                 if (conn != null && (retry || release))
                     U.close(conn, log);
             }
+        }
+    }
+
+    /**
+     * @param cacheIds Cache IDs.
+     * @return {@code True} if all caches are replicated, {@code False} otherwise.
+     */
+    private boolean isReplicatedOnly(List<Integer> cacheIds) {
+        for (Integer cacheId : cacheIds) {
+            if (!cacheContext(cacheId).isReplicated())
+                return false;
+        }
+
+        return true;
+    }
+
+    private void throttleOnRetry(ReduceQueryRun lastRun, long startTime, long retryTimeout,
+        int timeoutMultiplicator) {
+        if (retryTimeout > 0 && (U.currentTimeMillis() - startTime > retryTimeout)) {
+            //TODO: GG-23176: To be reafactored. Retry logic looks too complicated.
+            // There are few cases when 'retryCause' can be undefined, so we should throw exception with proper message here.
+            if (lastRun == null || lastRun.retryCause() == null)
+                throw new CacheException("Failed to map SQL query to topology during timeout: " + retryTimeout + "ms");
+
+            UUID retryNodeId = lastRun.retryNodeId();
+            String retryCause = lastRun.retryCause();
+
+            throw new CacheException("Failed to map SQL query to topology on data node [dataNodeId=" + retryNodeId +
+                ", msg=" + retryCause + ']');
+        }
+
+        try {
+            Thread.sleep(Math.min(10_000, timeoutMultiplicator * 10)); // Wait for exchange.
+        }
+        catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+
+            throw new CacheException("Query was interrupted.", e);
         }
     }
 
