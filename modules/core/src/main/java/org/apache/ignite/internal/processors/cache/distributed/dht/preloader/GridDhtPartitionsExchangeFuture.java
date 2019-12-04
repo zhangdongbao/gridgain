@@ -335,6 +335,10 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     @GridToStringExclude
     private final GridDhtPartitionsStateValidator validator;
 
+    /** Set of groups ids which have outdated counters. */
+    @GridToStringExclude
+    private HashSet<Integer> outdateCounterGrps;
+
     /** Register caches future. Initialized on exchange init. Must be waited on exchange end. */
     private IgniteInternalFuture<?> registerCachesFuture;
 
@@ -5180,6 +5184,28 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         synchronized (mux) {
             clearingPartitions.computeIfAbsent(grp.groupId(), k -> new HashSet()).add(part);
         }
+    }
+
+    /**
+     * Adds a group's to list which contains goups with outdated counters.
+     * This information will be used in rebalance after exchange action.
+     *
+     * @param grp Group.
+     */
+    public void addOutdateCounterGrps(CacheGroupContext grp) {
+        if (outdateCounterGrps == null)
+            outdateCounterGrps = new HashSet<>();
+
+        log.info("Add grop to rebalance: " + grp.cacheOrGroupName());
+
+        outdateCounterGrps.add(grp.groupId());
+    }
+
+    /**
+     * @return List of groups' ids.
+     */
+    public HashSet<Integer> getOutdateCounterGrps() {
+        return outdateCounterGrps;
     }
 
     /**

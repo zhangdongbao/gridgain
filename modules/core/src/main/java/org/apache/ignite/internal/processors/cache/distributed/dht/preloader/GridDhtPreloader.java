@@ -48,6 +48,7 @@ import org.apache.ignite.internal.util.future.GridFinishedFuture;
 import org.apache.ignite.internal.util.future.GridFutureAdapter;
 import org.apache.ignite.internal.util.lang.GridPlainRunnable;
 import org.apache.ignite.internal.util.typedef.CI1;
+import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.internal.CU;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.lang.IgnitePredicate;
@@ -187,6 +188,9 @@ public class GridDhtPreloader extends GridCachePreloaderAdapter {
 
         if (rebalanceFuture.isDone() && !rebalanceFuture.result())
             return true; // Required, previous rebalance cancelled.
+
+        if (!F.isEmpty(exchFut.getOutdateCounterGrps()) && exchFut.getOutdateCounterGrps().contains(grp.groupId()))
+            return true;
 
         AffinityTopologyVersion rebTopVer = rebalanceFuture.topologyVersion();
 

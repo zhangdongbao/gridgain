@@ -1099,7 +1099,7 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
 
             return new GridDhtPartitionMap(ctx.localNodeId(),
                 updateSeq.get(),
-                locPartMap != null && !AffinityTopologyVersion.NONE.equals(AffinityTopologyVersion.NONE) ? locPartMap.topologyVersion() : readyTopVer,
+                locPartMap != null ? locPartMap.topologyVersion() : readyTopVer,
                 map,
                 true);
         }
@@ -2270,7 +2270,7 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
 
                 for (Map.Entry<Integer, Set<UUID>> entry : ownersByUpdCounters.entrySet()) {
                     int part = entry.getKey();
-                    Set<UUID> newOwners = entry.getValue();
+                    Set<UUID> maxCounterPartOwners = entry.getValue();
 
                     GridDhtLocalPartition locPart = localPartition(part);
 
@@ -2278,7 +2278,7 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
                         continue;
 
                     // Partition state should be mutated only on joining nodes if they are exists for the exchange.
-                    if (joinedNodes.isEmpty() && !newOwners.contains(locNodeId)) {
+                    if (joinedNodes.isEmpty() && !maxCounterPartOwners.contains(locNodeId)) {
                         rebalancePartition(part, !haveHist.contains(part), exchFut);
 
                         res.computeIfAbsent(locNodeId, n -> new HashSet<>()).add(part);
@@ -2288,7 +2288,7 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
                 // Then process remote partitions.
                 for (Map.Entry<Integer, Set<UUID>> entry : ownersByUpdCounters.entrySet()) {
                     int part = entry.getKey();
-                    Set<UUID> newOwners = entry.getValue();
+                    Set<UUID> maxCounterPartOwners = entry.getValue();
 
                     for (Map.Entry<UUID, GridDhtPartitionMap> remotes : node2part.entrySet()) {
                         UUID remoteNodeId = remotes.getKey();
@@ -2303,7 +2303,7 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
                         if (state != OWNING)
                             continue;
 
-                        if (!newOwners.contains(remoteNodeId)) {
+                        if (!maxCounterPartOwners.contains(remoteNodeId)) {
                             partMap.put(part, MOVING);
 
                             partMap.updateSequence(partMap.updateSequence() + 1, partMap.topologyVersion());
@@ -2389,8 +2389,11 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
             }
         }
 
-        if (part.state() != MOVING)
+        if (part.state() != MOVING) {
+            exchFut.addOutdateCounterGrps(grp);
+
             part.moving();
+        }
 
         if (clear)
             exchFut.addClearingPartition(grp, part.id());
