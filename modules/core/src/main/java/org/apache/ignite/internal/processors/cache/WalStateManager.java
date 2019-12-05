@@ -414,6 +414,11 @@ public class WalStateManager extends GridCacheSharedManagerAdapter {
             || !IgniteSystemProperties.getBoolean(IgniteSystemProperties.IGNITE_DISABLE_WAL_DURING_REBALANCING, true))
             return;
 
+        if (exchFut.exchangeActions() != null && !F.isEmpty(exchFut.exchangeActions().cacheGroupsToStop())) {
+            for (ExchangeActions.CacheGroupActionData grpActionData : exchFut.exchangeActions().cacheGroupsToStop())
+                onGroupRebalanceFinished(grpActionData.descriptor().groupId());
+        }
+
         Set<Integer> grpsToEnableWal = new HashSet<>();
         Set<Integer> grpsToDisableWal = new HashSet<>();
         Set<Integer> grpsWithWalDisabled = new HashSet<>();
@@ -487,6 +492,8 @@ public class WalStateManager extends GridCacheSharedManagerAdapter {
 
         if (F.isEmpty(groupsToEnable))
             return;
+
+        grpId = groupsToEnable.stream().findFirst().get();
 
         CacheGroupContext grp = cctx.cache().cacheGroup(grpId);
 
@@ -1173,6 +1180,9 @@ public class WalStateManager extends GridCacheSharedManagerAdapter {
             this.remainingGrps = new HashSet<>();
         }
 
+        /**
+         * @param disabledGrps Groups' list whose WAL should disable.
+         */
         public synchronized void disable(Set<Integer> disabledGrps) {
             this.disabledGrps.addAll(disabledGrps);
             this.remainingGrps.addAll(disabledGrps);
@@ -1181,20 +1191,34 @@ public class WalStateManager extends GridCacheSharedManagerAdapter {
                 cctx.cache().cacheGroup(grpId).localWalEnabled(false, true);
         }
 
+        /**
+         * @param grpId Group id.
+         * @return
+         */
         public synchronized Set<Integer> enable(int grpId) {
             remainingGrps.remove(grpId);
 
             if (remainingGrps.isEmpty()) {
+                HashSet<Integer> walEnablingGrps = new HashSet<>(disabledGrps.size());
+
                 for (Integer grpId0 : disabledGrps) {
                     CacheGroupContext grp = cctx.cache().cacheGroup(grpId0);
 
-                    assert grp != null;
+                    if (grp == null) {
+                        log.warning("Could not found group grpId=" + grpId);
+
+                        break;
+                    }
 
                     if (!grp.localWalEnabled())
                         grp.localWalEnabled(true, false);
+
+                    walEnablingGrps.add(grpId0);
                 }
 
-                return new HashSet<>(disabledGrps);
+                disabledGrps.clear();
+
+                return walEnablingGrps;
             }
 
             return Collections.EMPTY_SET;
