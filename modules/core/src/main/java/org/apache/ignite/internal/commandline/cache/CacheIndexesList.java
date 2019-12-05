@@ -205,7 +205,6 @@ public class CacheIndexesList implements Command<CacheIndexesList.Arguments> {
         @Override public String toString() {
             return S.toString(Arguments.class, this);
         }
-
     }
 
     /**

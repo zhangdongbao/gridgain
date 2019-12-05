@@ -175,7 +175,7 @@ public class GridCommandHandlerIndexingUtils {
     }
 
     /** */
-    private static QueryEntity complexIndexEntry() {
+    public static QueryEntity complexIndexEntry() {
         QueryEntity entity = prepareQueryEntiry();
 
         entity.setIndexes(asList(new QueryIndex(ID_NAME),
@@ -186,7 +186,7 @@ public class GridCommandHandlerIndexingUtils {
     }
 
     /** */
-    private static QueryEntity simpleIndexEntry() {
+    public static QueryEntity simpleIndexEntry() {
         QueryEntity entity = prepareQueryEntiry();
 
         entity.setIndexes(asList(new QueryIndex(ID_NAME),

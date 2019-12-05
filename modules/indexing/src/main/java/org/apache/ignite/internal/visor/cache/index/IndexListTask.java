@@ -34,7 +34,7 @@ import org.h2.index.Index;
 import org.h2.table.Column;
 import org.jetbrains.annotations.Nullable;
 
-import static org.apache.ignite.internal.visor.cache.index.IndexListInfoContainer.EMPTY_GROUP_NAME;
+import static org.apache.ignite.internal.commandline.CommandHandler.EMPTY_GROUP_NAME;
 
 /**
  * Task that collects indexes information.

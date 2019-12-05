@@ -101,6 +101,7 @@ public class CacheCommands implements Command<CacheSubcommands> {
             case CONTENTION:
             case DISTRIBUTION:
             case INDEX_LIST:
+            case INDEX_REBUILD_STATUS:
                 cmd.subcommand().parseArguments(argIter);
 
                 break;
