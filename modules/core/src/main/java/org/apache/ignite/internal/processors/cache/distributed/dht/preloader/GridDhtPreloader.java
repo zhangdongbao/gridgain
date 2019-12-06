@@ -222,7 +222,9 @@ public class GridDhtPreloader extends GridCachePreloaderAdapter {
     private boolean isBltNodeLeft(GridDhtPartitionsExchangeFuture exchFut) {
         return (exchFut.firstEvent().type() == EVT_NODE_LEFT
             || exchFut.firstEvent().type() == EVT_NODE_FAILED)
-            && CU.baselineNode(exchFut.firstEvent().eventNode(), ctx.kernalContext().state().clusterState());
+            && !exchFut.firstEvent().eventNode().isClient()
+            && (!grp.persistenceEnabled()
+            || CU.baselineNode(exchFut.firstEvent().eventNode(), ctx.kernalContext().state().clusterState()));
     }
 
     /**
