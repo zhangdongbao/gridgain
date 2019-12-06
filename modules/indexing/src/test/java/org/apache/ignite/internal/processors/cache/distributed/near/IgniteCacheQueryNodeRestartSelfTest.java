@@ -101,6 +101,8 @@ public class IgniteCacheQueryNodeRestartSelfTest extends GridCacheAbstractSelfTe
 
         final IgniteCache<Integer, Integer> cache = grid(0).cache(DEFAULT_CACHE_NAME);
 
+        grid(0).cluster().baselineAutoAdjustEnabled(false);
+
         assert cache != null;
 
         for (int i = 0; i < KEY_CNT; i++)
@@ -181,9 +183,6 @@ public class IgniteCacheQueryNodeRestartSelfTest extends GridCacheAbstractSelfTe
     protected IgniteInternalFuture createRestartAction(final AtomicBoolean done, final AtomicInteger restartCnt) throws Exception {
         return multithreadedAsync(new Callable<Object>() {
             /** */
-            private final long nodeLifeTime = 2 * 1000;
-
-            /** */
             private final int logFreq = 50;
 
             @SuppressWarnings({"BusyWait"})
@@ -193,9 +192,11 @@ public class IgniteCacheQueryNodeRestartSelfTest extends GridCacheAbstractSelfTe
 
                     startGrid(idx);
 
-                    Thread.sleep(nodeLifeTime);
+                    resetBaselineTopology();
 
                     stopGrid(idx);
+
+                    resetBaselineTopology();
 
                     int c = restartCnt.incrementAndGet();
 

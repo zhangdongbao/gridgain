@@ -212,7 +212,7 @@ public class GridDhtPreloader extends GridCachePreloaderAdapter {
 
         Set<Integer> parts = localParts(exchFut.topologyVersion());
 
-        return (parts.size() != previousParts.size()) || !parts.equals(previousParts);
+        return (parts.size() > previousParts.size()) || !previousParts.containsAll(parts);
     }
 
     /**
