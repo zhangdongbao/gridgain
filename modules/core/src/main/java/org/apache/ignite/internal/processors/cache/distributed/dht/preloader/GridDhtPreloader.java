@@ -212,7 +212,7 @@ public class GridDhtPreloader extends GridCachePreloaderAdapter {
 
         Set<Integer> parts = localParts(exchFut.topologyVersion());
 
-        return (parts.size() > previousParts.size()) || !previousParts.containsAll(parts);
+        return (parts.size() != previousParts.size()) || !previousParts.equals(parts);
     }
 
     /**
@@ -232,12 +232,13 @@ public class GridDhtPreloader extends GridCachePreloaderAdapter {
      * @return Set of ids of local partitions.
      */
     @NotNull private Set<Integer> localParts(AffinityTopologyVersion rebTopVer) {
-        AffinityAssignment previousAff = grp.affinity().cachedAffinity(rebTopVer);
+        AffinityAssignment aff = grp.affinity().cachedAffinity(rebTopVer);
 
-        Set<Integer> previousParts = new HashSet<>(previousAff.primaryPartitions(ctx.localNodeId()));
+        Set<Integer> parts = new HashSet<>(aff.primaryPartitions(ctx.localNodeId()));
 
-        previousParts.addAll(previousAff.backupPartitions(ctx.localNodeId()));
-        return previousParts;
+        parts.addAll(aff.backupPartitions(ctx.localNodeId()));
+
+        return parts;
     }
 
     /** {@inheritDoc} */
