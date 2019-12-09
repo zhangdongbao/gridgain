@@ -18,6 +18,7 @@ package org.apache.ignite.cache;
 
 import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteDataStreamer;
+import org.apache.ignite.cache.affinity.rendezvous.RendezvousAffinityFunction;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.configuration.DataRegionConfiguration;
@@ -69,6 +70,7 @@ public class RebalanceCancellationTest extends GridCommonAbstractTest {
                     .setPersistenceEnabled(persistenceEnabled)))
             .setCacheConfiguration(
                 new CacheConfiguration(DEFAULT_CACHE_NAME)
+                    .setAffinity(new RendezvousAffinityFunction(false, 15))
                     .setBackups(BACKUPS));
 
         if (addtiotionalMemRegion) {
@@ -338,15 +340,15 @@ public class RebalanceCancellationTest extends GridCommonAbstractTest {
     }
 
     /**
-     * @param ignite0 Ignite.
+     * @param ignite Ignite.
      * @return Array of rebelance futures.
      */
-    @NotNull private IgniteInternalFuture<Boolean>[] getAllRebalanceFutures(IgniteEx ignite0) {
-        IgniteInternalFuture<Boolean>[] futs = new IgniteInternalFuture[ignite0.cacheNames().size()];
+    @NotNull private IgniteInternalFuture<Boolean>[] getAllRebalanceFutures(IgniteEx ignite) {
+        IgniteInternalFuture<Boolean>[] futs = new IgniteInternalFuture[ignite.cacheNames().size()];
 
         int i = 0;
 
-        for (String cache : ignite0.cacheNames()) {
+        for (String cache : ignite.cacheNames()) {
             futs[i] = grid(1).context().cache()
                 .cacheGroup(CU.cacheId(cache)).preloader().rebalanceFuture();
 
