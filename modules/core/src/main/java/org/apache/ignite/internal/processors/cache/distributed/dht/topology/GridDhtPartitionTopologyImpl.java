@@ -2682,6 +2682,8 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
                         ", lastAffChangeVer=" + lastAffChangeVer + "]");
 
                 grp.preloader().forceRebalance();
+
+                return;
             }
 
             for (GridDhtLocalPartition locPart : grp.topology().currentLocalPartitions()) {
