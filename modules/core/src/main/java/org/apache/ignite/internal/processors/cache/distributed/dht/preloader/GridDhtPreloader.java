@@ -206,8 +206,6 @@ public class GridDhtPreloader extends GridCachePreloaderAdapter {
             return true; // Required, since no history info available.
         }
 
-        final IgniteInternalFuture<Boolean> rebFut = rebalanceFuture();
-
         Set<Integer> previousParts = localParts(rebTopVer);
 
         Set<Integer> parts = localParts(exchFut.topologyVersion());

@@ -3384,8 +3384,6 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
 
                         List<String> rebList = new LinkedList<>();
 
-                        boolean assignsCancelled = false;
-
                         GridCompoundFuture<Boolean, Boolean> forcedRebFut = null;
 
                         if (task instanceof ForceRebalanceExchangeTask)
@@ -3396,9 +3394,6 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
                                 CacheGroupContext grp = cctx.cache().cacheGroup(grpId);
 
                                 GridDhtPreloaderAssignments assigns = assignsMap.get(grpId);
-
-                                if (assigns != null)
-                                    assignsCancelled |= assigns.cancelled();
 
                                 Runnable cur = grp.preloader().addAssignments(assigns,
                                     forcePreload,
