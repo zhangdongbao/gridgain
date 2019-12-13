@@ -767,10 +767,8 @@ public class GridReduceQueryExecutor {
 
             Collection<ClusterNode> nodes = nodesParts.nodes();
 
-            if (nodes == null)
+            if (F.isEmpty(nodes))
                 return null;
-
-            assert !nodes.isEmpty();
 
             if (qry.explain() || qry.isReplicatedOnly()) {
                 ClusterNode locNode = ctx.discovery().localNode();
