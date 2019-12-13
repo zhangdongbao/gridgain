@@ -415,6 +415,8 @@ public class GridReduceQueryExecutor {
 
             final Collection<ClusterNode> nodes = mapping.nodes();
 
+            assert !F.isEmpty(nodes);
+
             H2PooledConnection conn = h2.connections().connection(schemaName);
 
             boolean retry = false;
@@ -825,7 +827,7 @@ public class GridReduceQueryExecutor {
 
         Collection<ClusterNode> nodes = nodesParts.nodes();
 
-        if (nodes == null)
+        if (F.isEmpty(nodes))
             throw new CacheException("Failed to determine nodes participating in the update. " +
                 "Explanation (Retry update once topology recovers).");
 
