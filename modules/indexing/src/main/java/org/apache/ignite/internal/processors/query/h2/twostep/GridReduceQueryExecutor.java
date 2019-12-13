@@ -406,7 +406,7 @@ public class GridReduceQueryExecutor {
                     "execution inside a transaction. It's recommended to rollback and retry transaction."));
             }
 
-            long qryReqId = qryIdGen.incrementAndGet();
+            final long qryReqId = qryIdGen.incrementAndGet();
 
             ReducePartitionMapResult mapping = createMapping(qry, parts, cacheIds, topVer, qryReqId);
 
@@ -429,15 +429,7 @@ public class GridReduceQueryExecutor {
                 release = true;
 
                 try {
-                    if (ctx.clientDisconnected()) {
-                        throw new CacheException("Query was cancelled, client node disconnected.",
-                            new IgniteClientDisconnectedException(ctx.cluster().clientReconnectFuture(),
-                                "Client node disconnected."));
-                    }
-
-                    final long qryReqId0 = qryReqId;
-
-                    cancel.set(() -> send(nodes, new GridQueryCancelRequest(qryReqId0), null, true));
+                    cancel.set(() -> send(nodes, new GridQueryCancelRequest(qryReqId), null, true));
 
                     int flags = queryFlags(qry, enforceJoinOrder, lazy, dataPageScanEnabled);
 
@@ -491,9 +483,6 @@ public class GridReduceQueryExecutor {
                         assert r != null;
                         lastRun = r;
 
-                        if (Thread.currentThread().isInterrupted())
-                            throw new IgniteInterruptedCheckedException("Query was interrupted.");
-
                         continue;
                     } else {
                         Iterator<List<?>> resIter;
@@ -511,7 +500,7 @@ public class GridReduceQueryExecutor {
                             U.close(conn, log);
                         }
                         else {
-                            cancel.checkCancelled();
+                            ensureQueryNotCancelled(cancel);
 
                             QueryContext qctx = new QueryContext(
                                 0,
@@ -641,6 +630,15 @@ public class GridReduceQueryExecutor {
         catch (QueryCancelledException cancelEx) {
             throw new CacheException("Failed to run reduce query locally. " + cancelEx.getMessage(),  cancelEx);
         }
+
+        if (ctx.clientDisconnected()) {
+            throw new CacheException("Query was cancelled, client node disconnected.",
+                new IgniteClientDisconnectedException(ctx.cluster().clientReconnectFuture(),
+                    "Client node disconnected."));
+        }
+
+        if (Thread.currentThread().isInterrupted())
+            throw new CacheException(new IgniteInterruptedCheckedException("Query was interrupted."));
     }
 
     @NotNull private List<GridCacheSqlQuery> prepareMapQueries(GridCacheTwoStepQuery qry, Object[] params,
