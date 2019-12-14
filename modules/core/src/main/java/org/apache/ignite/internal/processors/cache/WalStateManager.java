@@ -1205,9 +1205,9 @@ public class WalStateManager extends GridCacheSharedManagerAdapter {
                     CacheGroupContext grp = cctx.cache().cacheGroup(grpId0);
 
                     if (grp == null) {
-                        log.warning("Could not found group grpId=" + grpId);
+                        log.warning("Group stopped. Chnage WAL state does not need [id=" + grpId0 + "]");
 
-                        break;
+                        continue;
                     }
 
                     if (!grp.localWalEnabled())
