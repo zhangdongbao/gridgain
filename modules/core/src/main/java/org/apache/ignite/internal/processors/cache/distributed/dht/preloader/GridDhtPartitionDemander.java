@@ -271,6 +271,17 @@ public class GridDhtPartitionDemander {
     }
 
     /**
+     * Cancels rebalance before start new one.
+     * This method will invoked when new rebalance is planing for stabilization of local partitions' state.
+     */
+    public void cancelRebalanceIfNeeded() {
+        final RebalanceFuture oldFut = rebalanceFut;
+
+        if (!oldFut.isInitial() && !oldFut.isDone())
+            oldFut.cancel();
+    }
+
+    /**
      * This method initiates new rebalance process from given {@code assignments} by creating new rebalance
      * future based on them. Cancels previous rebalance future and sends rebalance started event.
      * In case of delayed rebalance method schedules the new one with configured delay based on {@code lastExchangeFut}.
@@ -670,6 +681,13 @@ public class GridDhtPartitionDemander {
         fut.cancelLock.readLock().lock();
 
         try {
+            if (fut.isDone()) {
+                if (log.isDebugEnabled())
+                    log.debug("Supply message ignored (rebalance completed) [" + demandRoutineInfo(nodeId, supplyMsg) + "]");
+
+                return;
+            }
+
             ClusterNode node = ctx.node(nodeId);
 
             if (node == null) {

@@ -250,6 +250,8 @@ public class GridDhtPreloader extends GridCachePreloaderAdapter {
         if (!grp.rebalanceEnabled())
             return new GridDhtPreloaderAssignments(exchId, top.readyTopologyVersion());
 
+        demander.cancelRebalanceIfNeeded();
+
         int partitions = grp.affinity().partitions();
 
         AffinityTopologyVersion topVer = top.readyTopologyVersion();
