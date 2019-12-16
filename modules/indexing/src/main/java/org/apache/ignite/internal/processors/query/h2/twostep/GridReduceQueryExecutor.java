@@ -368,8 +368,7 @@ public class GridReduceQueryExecutor {
         List<Integer> cacheIds = qry.cacheIds();
 
         // Partitions are not supported for queries over all replicated caches.
-        if (parts != null)
-            if (isReplicatedOnly(cacheIds))
+        if (parts != null && isReplicatedOnly(cacheIds))
                 throw new CacheException("Partitions are not supported for replicated caches");
 
         final boolean singlePartMode = parts != null && parts.length == 1;
