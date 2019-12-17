@@ -63,6 +63,7 @@ import java.util.concurrent.atomic.LongAdder;
 import java.util.concurrent.locks.LockSupport;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.ToLongFunction;
 import java.util.regex.Matcher;
@@ -1482,67 +1483,81 @@ public class GridCacheDatabaseSharedManager extends IgniteCacheDatabaseSharedMan
 
     /** {@inheritDoc} */
     @Override public void rebuildIndexesIfNeeded(GridDhtPartitionsExchangeFuture fut) {
+        rebuildIndexes(cctx.cacheContexts(), (cacheCtx) -> cacheCtx.startTopologyVersion().equals(fut.initialVersion()));
+    }
+
+    /** {@inheritDoc} */
+    @Override public void forceRebuildIndexes(Collection<GridCacheContext> contexts) {
+        contexts.forEach(ctx -> prepareIndexRebuildFuture(ctx.cacheId()));
+
+        rebuildIndexes(contexts, (cacheCtx) -> true);
+    }
+
+    /** */
+    private void rebuildIndexes(Collection<GridCacheContext> contexts, Function<GridCacheContext, Boolean> rebuildCond) {
         GridQueryProcessor qryProc = cctx.kernalContext().query();
+
+        if (!qryProc.moduleEnabled())
+            return;
 
         GridCompoundFuture compoundAllIdxsRebuilt = null;
 
-        if (qryProc.moduleEnabled()) {
-            for (final GridCacheContext cacheCtx : (Collection<GridCacheContext>)cctx.cacheContexts()) {
-                if (cacheCtx.startTopologyVersion().equals(fut.initialVersion())) {
-                    final int cacheId = cacheCtx.cacheId();
-                    final GridFutureAdapter<Void> usrFut = idxRebuildFuts.get(cacheId);
+        for (final GridCacheContext cacheCtx : contexts) {
+            if (!rebuildCond.apply(cacheCtx))
+                continue;
 
-                    IgniteInternalFuture<?> rebuildFut = qryProc.rebuildIndexesFromHash(cacheCtx);
+            final int cacheId = cacheCtx.cacheId();
+            final GridFutureAdapter<Void> usrFut = idxRebuildFuts.get(cacheId);
 
-                    if (rebuildFut != null) {
-                        log().info("Started indexes rebuilding for cache [name=" + cacheCtx.name()
-                            + ", grpName=" + cacheCtx.group().name() + ']');
+            IgniteInternalFuture<?> rebuildFut = qryProc.rebuildIndexesFromHash(cacheCtx);
 
-                        if (compoundAllIdxsRebuilt == null)
-                            compoundAllIdxsRebuilt = new GridCompoundFuture();
+            if (rebuildFut != null) {
+                log().info("Started indexes rebuilding for cache [name=" + cacheCtx.name()
+                    + ", grpName=" + cacheCtx.group().name() + ']');
 
-                        compoundAllIdxsRebuilt.add(rebuildFut);
+                if (compoundAllIdxsRebuilt == null)
+                    compoundAllIdxsRebuilt = new GridCompoundFuture();
 
-                        rebuildFut.listen(new CI1<IgniteInternalFuture>() {
-                            @Override public void apply(IgniteInternalFuture fut) {
-                                idxRebuildFuts.remove(cacheId, usrFut);
+                compoundAllIdxsRebuilt.add(rebuildFut);
 
-                                Throwable err = fut.error();
+                rebuildFut.listen(new CI1<IgniteInternalFuture>() {
+                    @Override public void apply(IgniteInternalFuture fut) {
+                        idxRebuildFuts.remove(cacheId, usrFut);
 
-                                usrFut.onDone(err);
+                        Throwable err = fut.error();
 
-                                CacheConfiguration ccfg = cacheCtx.config();
+                        usrFut.onDone(err);
 
-                                if (ccfg != null) {
-                                    if (err == null) {
-                                        if (log.isInfoEnabled())
-                                            log.info("Finished indexes rebuilding for cache [name=" + ccfg.getName()
-                                                + ", grpName=" + ccfg.getGroupName() + ']');
-                                    }
-                                    else {
-                                        if (!(err instanceof NodeStoppingException))
-                                            log().error("Failed to rebuild indexes for cache  [name=" + ccfg.getName()
-                                                + ", grpName=" + ccfg.getGroupName() + ']', err);
-                                    }
-                                }
+                        CacheConfiguration ccfg = cacheCtx.config();
+
+                        if (ccfg != null) {
+                            if (err == null) {
+                                if (log.isInfoEnabled())
+                                    log.info("Finished indexes rebuilding for cache [name=" + ccfg.getName()
+                                        + ", grpName=" + ccfg.getGroupName() + ']');
                             }
-                        });
-                    }
-                    else {
-                        if (usrFut != null) {
-                            idxRebuildFuts.remove(cacheId, usrFut);
-
-                            usrFut.onDone();
+                            else {
+                                if (!(err instanceof NodeStoppingException))
+                                    log().error("Failed to rebuild indexes for cache  [name=" + ccfg.getName()
+                                        + ", grpName=" + ccfg.getGroupName() + ']', err);
+                            }
                         }
                     }
+                });
+            }
+            else {
+                if (usrFut != null) {
+                    idxRebuildFuts.remove(cacheId, usrFut);
+
+                    usrFut.onDone();
                 }
             }
+        }
 
-            if (compoundAllIdxsRebuilt != null) {
-                compoundAllIdxsRebuilt.listen(a -> log().info("Indexes rebuilding completed for all caches."));
+        if (compoundAllIdxsRebuilt != null) {
+            compoundAllIdxsRebuilt.listen(a -> log().info("Indexes rebuilding completed for all caches."));
 
-                compoundAllIdxsRebuilt.markInitialized();
-            }
+            compoundAllIdxsRebuilt.markInitialized();
         }
     }
 

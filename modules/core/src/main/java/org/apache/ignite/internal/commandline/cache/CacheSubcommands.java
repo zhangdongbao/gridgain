@@ -21,6 +21,7 @@ import org.apache.ignite.internal.commandline.argument.CommandArg;
 import org.apache.ignite.internal.commandline.cache.argument.DistributionCommandArg;
 import org.apache.ignite.internal.commandline.cache.argument.FindAndDeleteGarbageArg;
 import org.apache.ignite.internal.commandline.cache.argument.IdleVerifyCommandArg;
+import org.apache.ignite.internal.commandline.cache.argument.IndexForceRebuildCommandArg;
 import org.apache.ignite.internal.commandline.cache.argument.IndexListComandArg;
 import org.apache.ignite.internal.commandline.cache.argument.IndexRebuildStatusArg;
 import org.apache.ignite.internal.commandline.cache.argument.ListCommandArg;
@@ -79,7 +80,12 @@ public enum CacheSubcommands {
     /**
      * Index rebuild status.
      */
-    INDEX_REBUILD_STATUS("indexes_rebuild_status", IndexRebuildStatusArg.class, new CacheIndexesRebuildStatus());
+    INDEX_REBUILD_STATUS("indexes_rebuild_status", IndexRebuildStatusArg.class, new CacheIndexesRebuildStatus()),
+
+    /**
+     * Index force rebuild.
+     */
+    INDEX_FORCE_REBUILD("indexes_force_rebuild", IndexForceRebuildCommandArg.class, new CacheIndexesForceRebuild());
 
 
     /** Enumerated values. */

@@ -71,7 +71,12 @@ public enum CacheCommandList {
     /**
      * Index rebuild status.
      */
-    INDEX_REBUILD_STATUS("indexes_rebuild_status", new CacheIndexesRebuildStatus());
+    INDEX_REBUILD_STATUS("indexes_rebuild_status", new CacheIndexesRebuildStatus()),
+
+    /**
+     * Index force rebuild.
+     */
+    INDEX_FORCE_REBUILD("indexes_force_rebuild", new CacheIndexesForceRebuild());
 
     /** Enumerated values. */
     private static final CacheCommandList[] VALS = values();
