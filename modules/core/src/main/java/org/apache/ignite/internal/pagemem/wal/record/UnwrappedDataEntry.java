@@ -16,6 +16,12 @@
 
 package org.apache.ignite.internal.pagemem.wal.record;
 
+import java.util.Base64;
+import org.apache.ignite.IgniteCheckedException;
+import org.apache.ignite.binary.BinaryObject;
+import org.apache.ignite.internal.processors.cache.CacheObjectValueContext;
+import org.apache.ignite.internal.util.typedef.internal.S;
+
 /**
  * Interface for Data Entry for automatic unwrapping key and value from Data Entry
  */
@@ -35,4 +41,86 @@ public interface UnwrappedDataEntry {
      * @return Value which was placed into cache. Or null for delete operation or for failure.
      */
     Object unwrappedValue();
+
+    /**
+     * Returns a string representation of the entry.
+     *
+     * @param entry          Object to get a string presentation for.
+     * @param superToString  String representation of parent.
+     * @param cacheObjValCtx Cache object value context. Context is used for unwrapping objects.
+     * @param <T>            Composite type: extends DataEntry implements UnwrappedDataEntry
+     * @return String presentation of the given object.
+     */
+    public static <T extends DataEntry & UnwrappedDataEntry> String toString(
+        T entry,
+        String superToString,
+        final CacheObjectValueContext cacheObjValCtx
+    ) {
+        final Object key = entry.unwrappedKey();
+
+        String keyStr;
+        if (key instanceof String) {
+            keyStr = (String)key;
+        }
+        else if (key instanceof BinaryObject) {
+            keyStr = key.toString();
+        }
+        else {
+            keyStr = (key != null) ? toStringRecursive(key.getClass(), key) : null;
+        }
+
+        if (keyStr == null || keyStr.isEmpty()) {
+            try {
+                keyStr = Base64.getEncoder().encodeToString(entry.key().valueBytes(cacheObjValCtx));
+            }
+            catch (IgniteCheckedException e) {
+                cacheObjValCtx.kernalContext().log(UnwrapDataEntry.class)
+                    .error("Unable to convert key [" + entry.key() + "]", e);
+            }
+        }
+
+        final Object value = entry.unwrappedValue();
+
+        String valueStr;
+        if (value instanceof String) {
+            valueStr = (String)value;
+        }
+        else
+        if (value instanceof BinaryObject) {
+            valueStr = value.toString();
+        }
+        else {
+            valueStr = (value != null) ? toStringRecursive(value.getClass(), value) : null;
+        }
+
+        if (valueStr == null || valueStr.isEmpty()) {
+            try {
+                valueStr = Base64.getEncoder().encodeToString(entry.value().valueBytes(cacheObjValCtx));
+            }
+            catch (IgniteCheckedException e) {
+                cacheObjValCtx.kernalContext().log(UnwrapDataEntry.class)
+                    .error("Unable to convert value [" + entry.value() + "]", e);
+            }
+        }
+
+        return entry.getClass().getSimpleName() + "[k = " + keyStr + ", v = ["
+            + valueStr
+            + "], super = ["
+            + superToString + "]]";
+    }
+
+    /**
+     * Produces auto-generated output of string presentation for given object (given the whole hierarchy).
+     *
+     * @param cls Declaration class of the object.
+     * @param obj Object to get a string presentation for.
+     * @return String presentation of the given object.
+     */
+    public static String toStringRecursive(Class cls, Object obj) {
+        String result = null;
+        if (cls != Object.class) {
+            result = S.toString(cls, obj, toStringRecursive(cls.getSuperclass(), obj));
+        }
+        return result;
+    }
 }
