@@ -23,12 +23,13 @@ namespace Apache.Ignite.Core.Tests.Client.Cache
     using System.Linq;
     using System.Net;
     using System.Text.RegularExpressions;
+    using System.Threading;
     using System.Threading.Tasks;
+    using Apache.Ignite.Core.Cache.Affinity;
     using Apache.Ignite.Core.Cache.Configuration;
     using Apache.Ignite.Core.Client;
     using Apache.Ignite.Core.Client.Cache;
     using Apache.Ignite.Core.Common;
-    using Apache.Ignite.Core.Events;
     using NUnit.Framework;
 
     /// <summary>
@@ -172,10 +173,32 @@ namespace Apache.Ignite.Core.Tests.Client.Cache
 
             using (var ignite = Ignition.Start(cfg))
             {
-                // Wait for rebalance.
-                var events = ignite.GetEvents();
-                events.EnableLocal(EventType.CacheRebalanceStopped);
-                events.WaitForLocal(EventType.CacheRebalanceStopped);
+                var affinityChangedTop = new AffinityTopologyVersion(ignite.GetCluster().TopologyVersion, 1);
+                var checkPeriod = 500;
+                var waitingTimeout = 30000;
+                
+                // Wait for late affinity.
+                for (var iter=0; ;iter++)
+                {
+                    var result = ignite.GetCompute().ExecuteJavaTask<long[]>(
+                        "org.apache.ignite.platform.PlatformCacheAffinityVersionTask", _cache.Name);
+                    var top = new AffinityTopologyVersion(result[0], (int) result[1]);
+                    if (top.CompareTo(affinityChangedTop) >= 0)
+                    {
+                        Console.Out.WriteLine("Current topology: " + top);
+                        break;
+                    }
+                    else
+                    {
+                        if (iter % 10 == 0)
+                            Console.Out.WriteLine("Waiting topology cur=" + top + " wait=" + affinityChangedTop);
+                        
+                        if (iter * checkPeriod > waitingTimeout)
+                            Assert.Fail("Could not wait for the topology");
+                        
+                        Thread.Sleep(checkPeriod);
+                    }
+                }
 
                 // Warm-up.
                 Assert.AreEqual(1, _cache.Get(1));
