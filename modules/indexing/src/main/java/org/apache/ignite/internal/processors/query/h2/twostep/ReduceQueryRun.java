@@ -60,9 +60,11 @@ public class ReduceQueryRun {
         int pageSize,
         Boolean dataPageScanEnabled
     ) {
+        assert pageSize > 0;
+
         idxs = new ArrayList<>(idxsCnt);
 
-        this.pageSize = pageSize > 0 ? pageSize : Query.DFLT_PAGE_SIZE;
+        this.pageSize = pageSize;
         this.dataPageScanEnabled  = dataPageScanEnabled;
     }
 

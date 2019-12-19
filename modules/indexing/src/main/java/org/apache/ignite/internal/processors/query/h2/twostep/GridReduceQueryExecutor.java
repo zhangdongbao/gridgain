@@ -39,6 +39,7 @@ import org.apache.ignite.IgniteClientDisconnectedException;
 import org.apache.ignite.IgniteException;
 import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.IgniteSystemProperties;
+import org.apache.ignite.cache.query.Query;
 import org.apache.ignite.cache.query.QueryCancelledException;
 import org.apache.ignite.cache.query.QueryRetryException;
 import org.apache.ignite.cluster.ClusterNode;
@@ -351,6 +352,11 @@ public class GridReduceQueryExecutor {
         int pageSize,
         long maxMem
     ) {
+        assert !qry.mvccEnabled() || mvccTracker != null;
+
+        if (pageSize <= 0)
+            pageSize = Query.DFLT_PAGE_SIZE;
+
         // If explicit partitions are set, but there are no real tables, ignore.
         if (!qry.hasCacheIds() && parts != null)
             parts = null;
@@ -360,8 +366,6 @@ public class GridReduceQueryExecutor {
         // Partitions are not supported for queries over all replicated caches.
         if (parts != null && isReplicatedOnly(cacheIds))
             throw new CacheException("Partitions are not supported for replicated caches");
-
-        assert !qry.mvccEnabled() || mvccTracker != null;
 
         try {
             if (qry.mvccEnabled())
@@ -416,12 +420,12 @@ public class GridReduceQueryExecutor {
 
             H2PooledConnection conn = h2.connections().connection(schemaName);
 
+            final long qryReqId = qryIdGen.incrementAndGet();
+
             boolean retry = false;
             boolean release = true;
 
             try {
-                final long qryReqId = qryIdGen.incrementAndGet();
-
                 final ReduceQueryRun r = createReduceQueryRun(conn, mapQueries, nodes,
                     pageSize, segmentsPerIndex, skipMergeTbl, qry.explain(), dataPageScanEnabled);
 
@@ -430,18 +434,16 @@ public class GridReduceQueryExecutor {
                 try {
                     cancel.set(() -> send(nodes, new GridQueryCancelRequest(qryReqId), null, true));
 
-                    int flags = queryFlags(qry, enforceJoinOrder, lazy, dataPageScanEnabled);
-
                     GridH2QueryRequest req = new GridH2QueryRequest()
                         .requestId(qryReqId)
                         .topologyVersion(topVer)
-                        .pageSize(r.pageSize())
+                        .pageSize(pageSize)
                         .caches(qry.cacheIds())
                         .tables(qry.distributedJoins() ? qry.tables() : null)
                         .partitions(convert(mapping.partitionsMap()))
                         .queries(mapQueries)
                         .parameters(params)
-                        .flags(flags)
+                        .flags(queryFlags(qry, enforceJoinOrder, lazy, dataPageScanEnabled))
                         .timeout(timeoutMillis)
                         .schemaName(schemaName)
                         .maxMemory(maxMem);
@@ -479,8 +481,8 @@ public class GridReduceQueryExecutor {
                         retry = true;
 
                     if (retry) {
-                        assert r != null;
-                        lastRun = r;
+                        lastRun = runs.remove(qryReqId);
+                        assert lastRun != null;
 
                         continue;
                     } else {
@@ -686,7 +688,9 @@ public class GridReduceQueryExecutor {
         for (GridCacheSqlQuery mapQry : mapQueries) {
             ReduceIndex idx;
 
-            if (!skipMergeTbl) {
+            if (skipMergeTbl)
+                idx = ReduceIndexUnsorted.createDummy(ctx, fakeTable(conn, tblIdx++));
+            else {
                 ReduceTable tbl;
 
                 try {
@@ -700,8 +704,6 @@ public class GridReduceQueryExecutor {
 
                 fakeTable(conn, tblIdx++).innerTable(tbl);
             }
-            else
-                idx = ReduceIndexUnsorted.createDummy(ctx, fakeTable(conn, tblIdx++));
 
             // If the query has only replicated tables, we have to run it on a single node only.
             if (!mapQry.isPartitioned()) {

@@ -16,11 +16,10 @@
 
 package org.apache.ignite.internal.processors.query.h2.twostep;
 
-import org.apache.ignite.cluster.ClusterNode;
-import org.h2.util.IntArray;
-
 import java.util.Collection;
 import java.util.Map;
+import org.apache.ignite.cluster.ClusterNode;
+import org.h2.util.IntArray;
 import org.jetbrains.annotations.Nullable;
 
 /**

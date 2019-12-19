@@ -201,7 +201,7 @@ public abstract class ReduceIndex extends BaseIndex {
     public void setSources(Collection<ClusterNode> nodes, int segmentsCnt) {
         assert sources == null;
 
-        sources = new HashSet<>();
+        sources = new HashSet<>(nodes.size());
 
         for (ClusterNode node : nodes) {
             if (!sources.add(node.id()))
