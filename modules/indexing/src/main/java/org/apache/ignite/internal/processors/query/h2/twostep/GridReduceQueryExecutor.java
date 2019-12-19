@@ -355,6 +355,12 @@ public class GridReduceQueryExecutor {
         if (!qry.hasCacheIds() && parts != null)
             parts = null;
 
+        List<Integer> cacheIds = qry.cacheIds();
+
+        // Partitions are not supported for queries over all replicated caches.
+        if (parts != null && isReplicatedOnly(cacheIds))
+            throw new CacheException("Partitions are not supported for replicated caches");
+
         assert !qry.mvccEnabled() || mvccTracker != null;
 
         try {
@@ -364,12 +370,6 @@ public class GridReduceQueryExecutor {
         catch (IgniteTxAlreadyCompletedCheckedException e) {
             throw new TransactionAlreadyCompletedException(e.getMessage(), e);
         }
-
-        List<Integer> cacheIds = qry.cacheIds();
-
-        // Partitions are not supported for queries over all replicated caches.
-        if (parts != null && isReplicatedOnly(cacheIds))
-                throw new CacheException("Partitions are not supported for replicated caches");
 
         final boolean singlePartMode = parts != null && parts.length == 1;
 
@@ -405,9 +405,7 @@ public class GridReduceQueryExecutor {
                     "execution inside a transaction. It's recommended to rollback and retry transaction."));
             }
 
-            final long qryReqId = qryIdGen.incrementAndGet();
-
-            ReducePartitionMapResult mapping = createMapping(qry, parts, cacheIds, topVer, qryReqId);
+            ReducePartitionMapResult mapping = createMapping(qry, parts, cacheIds, topVer);
 
             if (mapping == null) // Can't map query.
                 continue; // Retry.
@@ -422,12 +420,12 @@ public class GridReduceQueryExecutor {
             boolean release = true;
 
             try {
+                final long qryReqId = qryIdGen.incrementAndGet();
+
                 final ReduceQueryRun r = createReduceQueryRun(conn, mapQueries, nodes,
                     pageSize, segmentsPerIndex, skipMergeTbl, qry.explain(), dataPageScanEnabled);
 
                 runs.put(qryReqId, r);
-
-                release = true;
 
                 try {
                     cancel.set(() -> send(nodes, new GridQueryCancelRequest(qryReqId), null, true));
@@ -625,6 +623,9 @@ public class GridReduceQueryExecutor {
     }
 
     private void ensureQueryNotCancelled(GridQueryCancel cancel) {
+        if (Thread.currentThread().isInterrupted())
+            throw new CacheException(new IgniteInterruptedCheckedException("Query was interrupted."));
+
         try {
             cancel.checkCancelled();
         }
@@ -637,9 +638,6 @@ public class GridReduceQueryExecutor {
                 new IgniteClientDisconnectedException(ctx.cluster().clientReconnectFuture(),
                     "Client node disconnected."));
         }
-
-        if (Thread.currentThread().isInterrupted())
-            throw new CacheException(new IgniteInterruptedCheckedException("Query was interrupted."));
     }
 
     @NotNull private List<GridCacheSqlQuery> prepareMapQueries(GridCacheTwoStepQuery qry, Object[] params,
@@ -750,19 +748,17 @@ public class GridReduceQueryExecutor {
      * @param parts Partitions.
      * @param cacheIds Cache ids.
      * @param topVer Topology version.
-     * @param qryReqId Query request id.
      * @return
      */
     private ReducePartitionMapResult createMapping(GridCacheTwoStepQuery qry,
         @Nullable int[] parts,
         List<Integer> cacheIds,
-        AffinityTopologyVersion topVer,
-        long qryReqId) {
+        AffinityTopologyVersion topVer) {
         if (qry.isLocalSplit() || !qry.hasCacheIds())
             return new ReducePartitionMapResult(singletonList(ctx.discovery().localNode()), null, null);
         else {
             ReducePartitionMapResult nodesParts =
-                mapper.nodesForPartitions(cacheIds, topVer, parts, qry.isReplicatedOnly(), qryReqId);
+                mapper.nodesForPartitions(cacheIds, topVer, parts, qry.isReplicatedOnly());
 
             Collection<ClusterNode> nodes = nodesParts.nodes();
 
@@ -817,10 +813,8 @@ public class GridReduceQueryExecutor {
     ) {
         AffinityTopologyVersion topVer = h2.readyTopologyVersion();
 
-        final long reqId = qryIdGen.incrementAndGet();
-
         ReducePartitionMapResult nodesParts =
-            mapper.nodesForPartitions(cacheIds, topVer, parts, isReplicatedOnly, reqId);
+            mapper.nodesForPartitions(cacheIds, topVer, parts, isReplicatedOnly);
 
         Collection<ClusterNode> nodes = nodesParts.nodes();
 
@@ -845,6 +839,8 @@ public class GridReduceQueryExecutor {
                 return null;
             }
         }
+
+        final long reqId = qryIdGen.incrementAndGet();
 
         final DmlDistributedUpdateRun r = new DmlDistributedUpdateRun(nodes.size());
 
