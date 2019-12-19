@@ -79,6 +79,7 @@ public class GridCacheTwoStepQuery {
      * @param skipMergeTbl Skip merge table flag.
      * @param explain Explain flag.
      * @param distributedJoins Distributed joins flag.
+     * @param replicatedOnly Replicated only flag.
      * @param derivedPartitions Derived partitions.
      * @param cacheIds Cache ids.
      * @param mvccEnabled Mvcc flag.
@@ -93,11 +94,14 @@ public class GridCacheTwoStepQuery {
         boolean skipMergeTbl,
         boolean explain,
         boolean distributedJoins,
+        boolean replicatedOnly,
         PartitionResult derivedPartitions,
         List<Integer> cacheIds,
         boolean mvccEnabled,
         boolean locSplit
     ) {
+        assert !F.isEmpty(mapQrys);
+
         this.originalSql = originalSql;
         this.paramsCnt = paramsCnt;
         this.tbls = tbls;
@@ -109,23 +113,7 @@ public class GridCacheTwoStepQuery {
         this.cacheIds = cacheIds;
         this.mvccEnabled = mvccEnabled;
         this.locSplit = locSplit;
-
-        if (F.isEmpty(mapQrys))
-            this.mapQrys = Collections.emptyList();
-        else {
-            this.mapQrys = mapQrys;
-        }
-
-        boolean replicatedOnly = true;
-
-        for (GridCacheSqlQuery mapQry : mapQrys) {
-            if (mapQry.isPartitioned()) {
-                replicatedOnly = false;
-
-                break;
-            }
-        }
-
+        this.mapQrys = mapQrys;
         this.replicatedOnly = replicatedOnly;
     }
 

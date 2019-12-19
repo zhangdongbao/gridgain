@@ -361,10 +361,8 @@ public class GridReduceQueryExecutor {
         if (!qry.hasCacheIds() && parts != null)
             parts = null;
 
-        List<Integer> cacheIds = qry.cacheIds();
-
         // Partitions are not supported for queries over all replicated caches.
-        if (parts != null && isReplicatedOnly(cacheIds))
+        if (parts != null && qry.isReplicatedOnly())
             throw new CacheException("Partitions are not supported for replicated caches");
 
         try {
@@ -379,6 +377,8 @@ public class GridReduceQueryExecutor {
 
         if (F.isEmpty(params))
             params = EMPTY_PARAMS;
+
+        List<Integer> cacheIds = qry.cacheIds();
 
         List<GridCacheSqlQuery> mapQueries = prepareMapQueries(qry, params, singlePartMode);
 
@@ -584,19 +584,6 @@ public class GridReduceQueryExecutor {
                     U.close(conn, log);
             }
         }
-    }
-
-    /**
-     * @param cacheIds Cache IDs.
-     * @return {@code True} if all caches are replicated, {@code False} otherwise.
-     */
-    private boolean isReplicatedOnly(List<Integer> cacheIds) {
-        for (Integer cacheId : cacheIds) {
-            if (!cacheContext(cacheId).isReplicated())
-                return false;
-        }
-
-        return true;
     }
 
     private void throttleOnRetry(ReduceQueryRun lastRun, long startTime, long retryTimeout,
