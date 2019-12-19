@@ -34,11 +34,10 @@ import org.apache.ignite.internal.processors.affinity.AffinityAssignment;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.cache.GridCacheContext;
 import org.apache.ignite.internal.processors.cache.distributed.dht.topology.GridDhtPartitionState;
-import org.apache.ignite.internal.util.GridIntIterator;
-import org.apache.ignite.internal.util.GridIntList;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.h2.util.IntArray;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import static org.apache.ignite.cache.PartitionLossPolicy.READ_ONLY_SAFE;
@@ -115,10 +114,14 @@ public class ReducePartitionMapper {
             }
         }
         else {
-            qryMap = stableDataNodes(isReplicatedOnly, topVer, cacheIds, parts);
+            if (parts == null)
+                nodes = stableDataNodes(cacheIds, topVer, isReplicatedOnly);
+            else {
+                qryMap = stableDataNodesForPartitions(topVer, cacheIds, parts);
 
-            if (qryMap != null)
-                nodes = qryMap.keySet();
+                if (qryMap != null)
+                    nodes = qryMap.keySet();
+            }
         }
 
         return new ReducePartitionMapResult(nodes, partsMap, qryMap);
@@ -162,40 +165,104 @@ public class ReducePartitionMapper {
     }
 
     /**
-     * @param isReplicatedOnly If we must only have replicated caches.
      * @param topVer Topology version.
      * @param cacheIds Participating cache IDs.
      * @param parts Partitions.
      * @return Data nodes or {@code null} if repartitioning started and we need to retry.
      */
-    private Map<ClusterNode, IntArray> stableDataNodes(boolean isReplicatedOnly, AffinityTopologyVersion topVer,
-        List<Integer> cacheIds, int[] parts) {
-        GridCacheContext<?, ?> cctx = cacheContext(cacheIds.get(0));
+    private Map<ClusterNode, IntArray> stableDataNodesForPartitions(
+        AffinityTopologyVersion topVer,
+        List<Integer> cacheIds,
+        @NotNull int[] parts) {
+        assert parts != null;
 
-        // If the first cache is not partitioned, find it (if it's present) and move it to index 0.
-        if (!cctx.isPartitioned()) {
-            for (int cacheId = 1; cacheId < cacheIds.size(); cacheId++) {
-                GridCacheContext<?, ?> currCctx = cacheContext(cacheIds.get(cacheId));
-
-                if (currCctx.isPartitioned()) {
-                    Collections.swap(cacheIds, 0, cacheId);
-
-                    cctx = currCctx;
-
-                    break;
-                }
-            }
-        }
+        GridCacheContext<?, ?> cctx = firstPartitionedCache(cacheIds);
 
         Map<ClusterNode, IntArray> map = stableDataNodesMap(topVer, cctx, parts);
 
         Set<ClusterNode> nodes = map.keySet();
 
-        if (F.isEmpty(map))
+        if (narrowToCaches(cctx, nodes, cacheIds, topVer, parts, false) == null)
+            return null;
+
+        return map;
+    }
+
+    /**
+     * @param cacheIds Participating cache IDs.
+     * @param topVer Topology version.
+     * @param isReplicatedOnly If we must only have replicated caches.
+     * @return Data nodes or {@code null} if repartitioning started and we need to retry.
+     */
+    private Collection<ClusterNode> stableDataNodes(
+        List<Integer> cacheIds,
+        AffinityTopologyVersion topVer,
+        boolean isReplicatedOnly) {
+        GridCacheContext<?, ?> cctx = (isReplicatedOnly) ? cacheContext(cacheIds.get(0)) :
+            firstPartitionedCache(cacheIds);
+
+        Set<ClusterNode> nodes;
+
+        // Explicit partitions mapping is not applicable to replicated cache.
+        final AffinityAssignment topologyAssignment = cctx.affinity().assignment(topVer);
+
+        if (cctx.isReplicated())
+            nodes = new HashSet<>(topologyAssignment.nodes());
+        else
+            nodes = new HashSet<>(topologyAssignment.primaryPartitionNodes());
+
+        return narrowToCaches(cctx, nodes, cacheIds, topVer, null, isReplicatedOnly);
+    }
+
+    /**
+     * If the first cache is not partitioned, find it (if it's present) and move it to index 0.
+     *
+     * @param cacheIds Cache ids collection.
+     * @return First partitioned cache.
+     */
+    private GridCacheContext<?, ?> firstPartitionedCache(List<Integer> cacheIds) {
+        GridCacheContext<?, ?> cctx = cacheContext(cacheIds.get(0));
+
+        // If the first cache is not partitioned, find it (if it's present) and move it to index 0.
+        if (cctx.isPartitioned())
+            return cctx;
+
+        for (int cacheId = 1; cacheId < cacheIds.size(); cacheId++) {
+            GridCacheContext<?, ?> currCctx = cacheContext(cacheIds.get(cacheId));
+
+            if (currCctx.isPartitioned()) {
+                Collections.swap(cacheIds, 0, cacheId);
+
+                return currCctx;
+            }
+        }
+
+        assert false;
+
+        return cctx;
+    }
+
+    /**
+     * @param cctx First cache context.
+     * @param nodes Nodes.
+     * @param cacheIds Query cache Ids.
+     * @param topVer Topology version.
+     * @param parts Query partitions.
+     * @param isReplicatedOnly Replicated only flag.
+     * @return
+     */
+    private Collection<ClusterNode> narrowToCaches(
+        GridCacheContext<?, ?> cctx,
+        Collection<ClusterNode> nodes,
+        List<Integer> cacheIds,
+        AffinityTopologyVersion topVer,
+        int[] parts,
+        boolean isReplicatedOnly) {
+        if (F.isEmpty(nodes))
             throw new CacheServerNotFoundException("Failed to find data nodes for cache: " + cctx.name());
 
         for (int i = 1; i < cacheIds.size(); i++) {
-            GridCacheContext<?,?> extraCctx = cacheContext(cacheIds.get(i));
+            GridCacheContext<?, ?> extraCctx = cacheContext(cacheIds.get(i));
 
             String extraCacheName = extraCctx.name();
 
@@ -218,7 +285,7 @@ public class ReducePartitionMapper {
                 if (isReplicatedOnly) {
                     nodes.retainAll(extraNodes);
 
-                    disjoint = map.isEmpty();
+                    disjoint = nodes.isEmpty();
                 }
                 else
                     disjoint = !extraNodes.containsAll(nodes);
@@ -242,7 +309,7 @@ public class ReducePartitionMapper {
             }
         }
 
-        return map;
+        return nodes;
     }
 
     /**
@@ -251,38 +318,18 @@ public class ReducePartitionMapper {
      * @param parts Partitions.
      */
     private Map<ClusterNode, IntArray> stableDataNodesMap(AffinityTopologyVersion topVer,
-        final GridCacheContext<?, ?> cctx, @Nullable final int[] parts) {
-
-        Map<ClusterNode, IntArray> mapping = new HashMap<>();
-
-        // Explicit partitions mapping is not applicable to replicated cache.
-        if (cctx.isReplicated()) {
-            for (ClusterNode clusterNode : cctx.affinity().assignment(topVer).nodes())
-                mapping.put(clusterNode, null);
-
-            return mapping;
-        }
+        final GridCacheContext<?, ?> cctx, final @NotNull int[] parts) {
+        assert !cctx.isReplicated();
 
         List<List<ClusterNode>> assignment = cctx.affinity().assignment(topVer).assignment();
 
-        boolean needPartsFilter = parts != null;
+        Map<ClusterNode, IntArray> mapping = new HashMap<>();
 
-        GridIntIterator iter = needPartsFilter ? new GridIntList(parts).iterator() :
-            U.forRange(0, cctx.affinity().partitions());
-
-        while(iter.hasNext()) {
-            int partId = iter.next();
-
-            List<ClusterNode> partNodes = assignment.get(partId);
+        for (int part : parts) {
+            List<ClusterNode> partNodes = assignment.get(part);
 
             if (!partNodes.isEmpty()) {
                 ClusterNode prim = partNodes.get(0);
-
-                if (!needPartsFilter) {
-                    mapping.put(prim, null);
-
-                    continue;
-                }
 
                 IntArray partIds = mapping.get(prim);
 
@@ -292,7 +339,7 @@ public class ReducePartitionMapper {
                     mapping.put(prim, partIds);
                 }
 
-                partIds.add(partId);
+                partIds.add(part);
             }
         }
 
@@ -300,6 +347,8 @@ public class ReducePartitionMapper {
     }
 
     /**
+     * Note: This may return unmodifiable set.
+     *
      * @param topVer Topology version.
      * @param cctx Cache context.
      * @param parts Partitions.
