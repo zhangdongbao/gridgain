@@ -30,6 +30,7 @@ import org.apache.ignite.cache.CacheServerNotFoundException;
 import org.apache.ignite.cache.PartitionLossPolicy;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.internal.GridKernalContext;
+import org.apache.ignite.internal.processors.affinity.AffinityAssignment;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.cache.GridCacheContext;
 import org.apache.ignite.internal.processors.cache.distributed.dht.topology.GridDhtPartitionState;
@@ -206,7 +207,7 @@ public class ReducePartitionMapper {
                     "with partitioned tables [replicatedCache=" + cctx.name() +
                     ", partitionedCache=" + extraCacheName + "]");
 
-            Set<ClusterNode> extraNodes = stableDataNodesMap(topVer, extraCctx, parts).keySet();
+            Set<ClusterNode> extraNodes = stableDataNodesSet(topVer, extraCctx, parts);
 
             if (F.isEmpty(extraNodes))
                 throw new CacheServerNotFoundException("Failed to find data nodes for cache: " + extraCacheName);
@@ -296,6 +297,37 @@ public class ReducePartitionMapper {
         }
 
         return mapping;
+    }
+
+    /**
+     * @param topVer Topology version.
+     * @param cctx Cache context.
+     * @param parts Partitions.
+     */
+    private Set<ClusterNode> stableDataNodesSet(AffinityTopologyVersion topVer,
+        final GridCacheContext<?, ?> cctx, @Nullable final int[] parts) {
+
+        // Explicit partitions mapping is not applicable to replicated cache.
+        final AffinityAssignment topologyAssignment = cctx.affinity().assignment(topVer);
+
+        if (cctx.isReplicated())
+            return topologyAssignment.nodes();
+
+        if (parts == null)
+            return topologyAssignment.primaryPartitionNodes();
+
+        List<List<ClusterNode>> assignment = topologyAssignment.assignment();
+
+        Set<ClusterNode> nodes = new HashSet<>();
+
+        for (int part : parts) {
+            List<ClusterNode> partNodes = assignment.get(part);
+
+            if (!partNodes.isEmpty())
+                nodes.add(partNodes.get(0));
+        }
+
+        return nodes;
     }
 
     /**
