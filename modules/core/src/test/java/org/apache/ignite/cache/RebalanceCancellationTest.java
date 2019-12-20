@@ -34,21 +34,29 @@ import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.lang.IgnitePredicate;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 import org.jetbrains.annotations.NotNull;
+import org.junit.Ignore;
 import org.junit.Test;
 
+/**
+ * Test cases when rebalance processed and not cancelled during various exchange events.
+ */
 public class RebalanceCancellationTest extends GridCommonAbstractTest {
     /** Start cluster nodes. */
     public static final int NODES_CNT = 3;
 
     /** Count of backup partitions. */
     public static final int BACKUPS = 2;
-    /***/
+
+    /** In memory data region name. */
     public static final String MEM_REGION = "mem-region";
-    /***/
+
+    /** In memory cache name. */
     public static final String MEM_REGOIN_CACHE = DEFAULT_CACHE_NAME + "_mem";
-    /***/
+
+    /** In memory dynamic cache name. */
     public static final String DYNAMIC_CACHE_NAME = DEFAULT_CACHE_NAME + "_dynamic";
-    /***/
+
+    /** Node name suffex. Used for {@link CustomNodeFilter}. */
     public static final String FITERED_NODE_SUFFIX = "_fitered";
 
     /** Persistence enabled. */
@@ -85,15 +93,21 @@ public class RebalanceCancellationTest extends GridCommonAbstractTest {
 
         if (filterNode) {
             for (CacheConfiguration ccfg : cfg.getCacheConfiguration()) {
-                ccfg.setNodeFilter(new IgnitePredicate<ClusterNode>() {
-                    @Override public boolean apply(ClusterNode node) {
-                        return !node.consistentId().toString().contains(FITERED_NODE_SUFFIX);
-                    }
-                });
+                ccfg.setNodeFilter(new CustomNodeFilter());
             }
         }
 
         return cfg;
+    }
+
+    /**
+     * Custom node filter. It filters all node that name contains a {@link FITERED_NODE_SUFFIX}.
+     */
+    private static class CustomNodeFilter implements IgnitePredicate<ClusterNode> {
+        /** {@inheritDoc} */
+        @Override public boolean apply(ClusterNode node) {
+            return !node.consistentId().toString().contains(FITERED_NODE_SUFFIX);
+        }
     }
 
     /** {@inheritDoc} */
@@ -107,87 +121,110 @@ public class RebalanceCancellationTest extends GridCommonAbstractTest {
         cleanPersistenceDir();
     }
 
-    //--
-
-    /** */
+    /**
+     * Non baseline node leaves cluster with only persistent caches during rebalance.
+     */
     @Test
     public void testRebalanceNoneBltNodeLeftOnOnlyPersistenceCluster() throws Exception {
         testRebalanceNoneBltNode(true, false, false);
     }
 
-    /** */
+    /**
+     * Non baseline node leaves cluster with only memory caches during rebalance.
+     */
     @Test
     public void testRebalanceNoneBltNodeLeftOnOnlyInMemoryCluster() throws Exception {
         testRebalanceNoneBltNode(false, false, false);
     }
 
-    /** */
+    /**
+     * Non baseline node leaves cluster with persistent and memory caches during rebalance.
+     */
     @Test
     public void testRebalanceNoneBltNodeLeftOnMixedCluster() throws Exception {
         testRebalanceNoneBltNode(true, true, false);
     }
 
-    //--
-
-    /** */
+    /**
+     * Non baseline node fails cluster with only persistent caches during rebalance.
+     */
     @Test
     public void testRebalanceNoneBltNodeFailedOnOnlyPersistenceCluster() throws Exception {
         testRebalanceNoneBltNode(true, false, true);
     }
 
-    /** */
+    /**
+     * Non baseline node fails cluster with only memory caches during rebalance.
+     */
     @Test
     public void testRebalanceNoneBltNodeFailedOnOnlyInMemoryCluster() throws Exception {
         testRebalanceNoneBltNode(false, false, true);
     }
 
-    /** */
+    /**
+     * Non baseline node fails cluster with persistent and memory caches during rebalance.
+     */
     @Test
     public void testRebalanceNoneBltNodeFailedOnMixedCluster() throws Exception {
         testRebalanceNoneBltNode(true, true, true);
     }
 
-    //--
-
-    /** */
+    /**
+     *
+     */
     @Test
+    @Ignore("https://ggsystems.atlassian.net/browse/GG-26764")
     public void testRebalanceFilteredNodeOnOnlyPersistenceCluster() throws Exception {
-        testRebalanceNoneBltNode(true, false, true);
+        testRebalanceFilteredNode(true, false);
     }
 
-    /** */
+    /**
+     *
+     */
     @Test
+    @Ignore("https://ggsystems.atlassian.net/browse/GG-26764")
     public void testRebalanceFilteredNodeOnOnlyInMemoryCluster() throws Exception {
-        testRebalanceNoneBltNode(false, false, true);
+        testRebalanceFilteredNode(false, false);
     }
 
-    /** */
+    /**
+     *
+     */
     @Test
+    @Ignore("https://ggsystems.atlassian.net/browse/GG-26764")
     public void testRebalanceFilteredNodeOnMixedCluster() throws Exception {
-        testRebalanceNoneBltNode(true, true, true);
+        testRebalanceFilteredNode(true, true);
     }
 
-    //--
-
-    /** */
+    /**
+     *
+     */
     @Test
     public void testRebalanceDynamicCacheOnOnlyPersistenceCluster() throws Exception {
         testRebalanceDynamicCache(true, false);
     }
 
-    /** */
+    /**
+     *
+     */
     @Test
     public void testRebalanceDynamicCacheOnOnlyInMemoryCluster() throws Exception {
         testRebalanceDynamicCache(false, false);
     }
 
-    /** */
+    /**
+     *
+     */
     @Test
     public void testRebalanceDynamicCacheOnMixedCluster() throws Exception {
         testRebalanceDynamicCache(true, true);
     }
 
-    /** */
+    /**
+     * @param persistence Persistent flag.
+     * @param addtiotionalRegion
+     * @throws Exception
+     */
     public void testRebalanceDynamicCache(boolean persistence, boolean addtiotionalRegion) throws Exception {
         persistenceEnabled = persistence;
         addtiotionalMemRegion = addtiotionalRegion;
@@ -232,7 +269,9 @@ public class RebalanceCancellationTest extends GridCommonAbstractTest {
             assertTrue(futInfoString(fut), fut.isDone() && fut.get());
     }
 
-    /** */
+    /**
+     *
+     */
     public void testRebalanceNoneBltNode(boolean persistence, boolean addtiotionalRegion,
         boolean fail) throws Exception {
         persistenceEnabled = persistence;
@@ -294,7 +333,9 @@ public class RebalanceCancellationTest extends GridCommonAbstractTest {
         }
     }
 
-    /** */
+    /**
+     *
+     */
     public void testRebalanceFilteredNode(boolean persistence, boolean addtiotionalRegion) throws Exception {
         persistenceEnabled = persistence;
         addtiotionalMemRegion = addtiotionalRegion;
@@ -324,8 +365,6 @@ public class RebalanceCancellationTest extends GridCommonAbstractTest {
             checkTopology(NODES_CNT);
 
             filteredNode = startGrid(getTestIgniteInstanceName(NODES_CNT) + FITERED_NODE_SUFFIX);
-
-            checkTopology(NODES_CNT + 1);
         }
 
         for (IgniteInternalFuture<Boolean> fut : futs)
@@ -360,6 +399,8 @@ public class RebalanceCancellationTest extends GridCommonAbstractTest {
     }
 
     /**
+     * Prepares string representation of rebalance future.
+     *
      * @param rebalanceFuture Rebalance future.
      * @return Information string about passed future.
      */
@@ -370,6 +411,8 @@ public class RebalanceCancellationTest extends GridCommonAbstractTest {
     }
 
     /**
+     * Loades several data entries to cache specified.
+     *
      * @param ignite Ignite.
      * @param cacheName Cache name.
      */
@@ -396,14 +439,12 @@ public class RebalanceCancellationTest extends GridCommonAbstractTest {
             if (msg instanceof GridDhtPartitionDemandMessage) {
                 GridDhtPartitionDemandMessage demandMessage = (GridDhtPartitionDemandMessage)msg;
 
-                long rebalanceId = U.field(demandMessage, "rebalanceId");
-
                 if (CU.cacheId(DEFAULT_CACHE_NAME) != demandMessage.groupId()
                     && CU.cacheId(MEM_REGOIN_CACHE) != demandMessage.groupId())
                     return false;
 
                 info("Message was caught: " + msg.getClass().getSimpleName()
-                    + " rebalanceId = " + rebalanceId
+                    + " rebalanceId = " + U.field(demandMessage, "rebalanceId")
                     + " to: " + node.consistentId()
                     + " by cache id: " + demandMessage.groupId());
 

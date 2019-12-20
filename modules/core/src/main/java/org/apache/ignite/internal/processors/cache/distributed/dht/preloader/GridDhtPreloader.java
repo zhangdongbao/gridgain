@@ -189,7 +189,7 @@ public class GridDhtPreloader extends GridCachePreloaderAdapter {
         if (rebalanceFuture.isDone() && !rebalanceFuture.result())
             return true; // Required, previous rebalance cancelled.
 
-        if (!F.isEmpty(exchFut.getOutdateCounterGrps()) && exchFut.getOutdateCounterGrps().contains(grp.groupId()))
+        if (exchFut.isGroupHasOutdatedCouters(grp.groupId()))
             return true;
 
         AffinityTopologyVersion rebTopVer = rebalanceFuture.topologyVersion();
@@ -214,6 +214,8 @@ public class GridDhtPreloader extends GridCachePreloaderAdapter {
     }
 
     /**
+     * Checks, if is exchange connected with the node exit from the baseline.
+     *
      * @param exchFut Exchange future.
      * @return True means baseline node left cluster, false otherwise.
      */
@@ -226,6 +228,8 @@ public class GridDhtPreloader extends GridCachePreloaderAdapter {
     }
 
     /**
+     * Local partitions which will be owned local node by specified topology version.
+     *
      * @param rebTopVer Topology version.
      * @return Set of ids of local partitions.
      */

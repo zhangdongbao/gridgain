@@ -397,6 +397,12 @@ public interface GridDhtPartitionTopology {
     @Nullable public GridDhtPartitionMap partitions(UUID nodeId);
 
     /**
+     * @param nodeId Node to get topology version for.
+     * @return Local stored topology version for specified node.
+     */
+    @Nullable public AffinityTopologyVersion topologyVersion(UUID nodeId);
+
+    /**
      * Prints memory stats.
      *
      * @param threshold Threshold for number of entries.

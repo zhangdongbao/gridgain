@@ -414,8 +414,10 @@ public class WalStateManager extends GridCacheSharedManagerAdapter {
             || !IgniteSystemProperties.getBoolean(IgniteSystemProperties.IGNITE_DISABLE_WAL_DURING_REBALANCING, true))
             return;
 
-        if (exchFut.exchangeActions() != null && !F.isEmpty(exchFut.exchangeActions().cacheGroupsToStop())) {
-            for (ExchangeActions.CacheGroupActionData grpActionData : exchFut.exchangeActions().cacheGroupsToStop())
+        ExchangeActions actions = exchFut.exchangeActions();
+
+        if (actions != null && !F.isEmpty(actions.cacheGroupsToStop())) {
+            for (ExchangeActions.CacheGroupActionData grpActionData : actions.cacheGroupsToStop())
                 onGroupRebalanceFinished(grpActionData.descriptor().groupId());
         }
 
@@ -499,7 +501,7 @@ public class WalStateManager extends GridCacheSharedManagerAdapter {
 
         assert grp != null: "Can not find group with id: " + grpId;
 
-        AffinityTopologyVersion lastGroupTop = grp.topology().lastTopologyChangeVersion();
+        AffinityTopologyVersion lastGroupTop = grp.topology().readyTopologyVersion();
 
         // Pending updates in groups with disabled WAL are not protected from crash.
         // Need to trigger checkpoint for attempt to persist them.
@@ -1165,22 +1167,18 @@ public class WalStateManager extends GridCacheSharedManagerAdapter {
     }
 
     /**
-     *
+     * Temporary storage for disabled WALs of group.
      */
     private class TemporaryDisabledWal {
         /** Groups with disabled WAL. */
-        private final Set<Integer> disabledGrps;
+        private final Set<Integer> disabledGrps = new HashSet<>();
 
         /** Remaining groups. */
-        private final Set<Integer> remainingGrps;
-
-        /** */
-        public TemporaryDisabledWal() {
-            this.disabledGrps = new HashSet<>();
-            this.remainingGrps = new HashSet<>();
-        }
+        private final Set<Integer> remainingGrps = new HashSet<>();
 
         /**
+         * Disables WAL of groups specified.
+         *
          * @param disabledGrps Groups' list whose WAL should disable.
          */
         public synchronized void disable(Set<Integer> disabledGrps) {
@@ -1192,8 +1190,12 @@ public class WalStateManager extends GridCacheSharedManagerAdapter {
         }
 
         /**
+         * Memorized group which for, WAL will be enabled.
+         * If WAL for all temporary disabled groups would be enabled,
+         * WAL will be local enable and result will not be empty.
+         *
          * @param grpId Group id.
-         * @return
+         * @return List of groups which were local enabled.
          */
         public synchronized Set<Integer> enable(int grpId) {
             remainingGrps.remove(grpId);

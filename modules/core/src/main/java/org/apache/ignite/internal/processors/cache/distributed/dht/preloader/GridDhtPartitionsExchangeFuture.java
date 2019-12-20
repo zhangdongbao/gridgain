@@ -5193,19 +5193,24 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
      * @param grp Group.
      */
     public void addOutdateCounterGrps(CacheGroupContext grp) {
+        assert !isDone() : "Exchange was done, outdated group should be processed before.";
+
         if (outdateCounterGrps == null)
             outdateCounterGrps = new HashSet<>();
-
-        log.info("Add grop to rebalance: " + grp.cacheOrGroupName());
 
         outdateCounterGrps.add(grp.groupId());
     }
 
     /**
-     * @return List of groups' ids.
+     * Check availability of outdated counters for group specified.
+     *
+     * @param groupId Group identifier.
+     * @return True means this group has outdated partition.
      */
-    public HashSet<Integer> getOutdateCounterGrps() {
-        return outdateCounterGrps;
+    public boolean isGroupHasOutdatedCouters(int groupId) {
+        assert isDone() : "Exchange have not completed yet.";
+
+        return !F.isEmpty(outdateCounterGrps) && outdateCounterGrps.contains(groupId);
     }
 
     /**

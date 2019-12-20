@@ -2676,10 +2676,11 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
             AffinityTopologyVersion lastAffChangeVer = ctx.exchange().lastAffinityChangedTopologyVersion(lastTopChangeVer);
 
             if (lastAffChangeVer.compareTo(rebFinishedTopVer) > 0) {
-                if (log.isInfoEnabled())
+                if (log.isInfoEnabled()) {
                     log.info("Affinity topology changed, no MOVING partitions will be owned " +
                         "[rebFinishedTopVer=" + rebFinishedTopVer +
                         ", lastAffChangeVer=" + lastAffChangeVer + "]");
+                }
 
                 grp.preloader().forceRebalance();
 
@@ -2744,6 +2745,21 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
 
         try {
             return node2part.get(nodeId);
+        }
+        finally {
+            lock.readLock().unlock();
+        }
+    }
+
+    /** {@inheritDoc} */
+    @Override public @Nullable AffinityTopologyVersion topologyVersion(UUID nodeId) {
+        lock.readLock().lock();
+
+        try {
+            if (node2part.get(nodeId) == null)
+                return AffinityTopologyVersion.NONE;
+
+            return node2part.get(nodeId).topologyVersion();
         }
         finally {
             lock.readLock().unlock();
