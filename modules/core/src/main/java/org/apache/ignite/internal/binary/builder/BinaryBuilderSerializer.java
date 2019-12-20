@@ -21,6 +21,7 @@ import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.apache.ignite.binary.BinaryObject;
+import org.apache.ignite.internal.binary.BinaryEnumObjectImpl;
 import org.apache.ignite.internal.binary.BinaryMetadata;
 import org.apache.ignite.internal.binary.BinaryObjectExImpl;
 import org.apache.ignite.internal.binary.BinaryUtils;
@@ -110,6 +111,16 @@ class BinaryBuilderSerializer {
             return;
         }
 
+        if (val instanceof BinaryEnumObjectImpl) {
+            BinaryEnumObjectImpl obj = (BinaryEnumObjectImpl)val;
+
+            writer.writeByte(GridBinaryMarshaller.ENUM);
+            writer.writeInt(obj.typeId());
+            writer.writeInt(obj.enumOrdinal());
+
+            return;
+        }
+
         if (IgniteUtils.isEnum(val.getClass())) {
             String clsName = ((Enum)val).getDeclaringClass().getName();
 
@@ -186,7 +197,15 @@ class BinaryBuilderSerializer {
                 return;
             }
 
-            if (((Object[])val).getClass().getComponentType().isEnum()) {
+            Class<?> compCls = ((Object[])val).getClass().getComponentType();
+
+            if (compCls.isAssignableFrom(BinaryEnumObjectImpl.class)) {
+                writeArray(writer, GridBinaryMarshaller.ENUM_ARR, (Object[])val, compTypeId);
+
+                return;
+            }
+
+            if (compCls.isEnum()) {
                 Enum[] enumArr = (Enum[])val;
 
                 writer.writeByte(GridBinaryMarshaller.ENUM_ARR);
