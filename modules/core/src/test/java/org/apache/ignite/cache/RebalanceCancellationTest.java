@@ -33,7 +33,6 @@ import org.apache.ignite.internal.util.typedef.internal.CU;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.lang.IgnitePredicate;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
-import org.jetbrains.annotations.NotNull;
 import org.junit.Ignore;
 import org.junit.Test;
 
@@ -146,7 +145,7 @@ public class RebalanceCancellationTest extends GridCommonAbstractTest {
     }
 
     /**
-     * Non baseline node fails cluster with only persistent caches during rebalance.
+     * Non baseline node fails in cluster with only persistent caches during rebalance.
      */
     @Test
     public void testRebalanceNoneBltNodeFailedOnOnlyPersistenceCluster() throws Exception {
@@ -154,7 +153,7 @@ public class RebalanceCancellationTest extends GridCommonAbstractTest {
     }
 
     /**
-     * Non baseline node fails cluster with only memory caches during rebalance.
+     * Non baseline node fails in cluster with only memory caches during rebalance.
      */
     @Test
     public void testRebalanceNoneBltNodeFailedOnOnlyInMemoryCluster() throws Exception {
@@ -162,7 +161,7 @@ public class RebalanceCancellationTest extends GridCommonAbstractTest {
     }
 
     /**
-     * Non baseline node fails cluster with persistent and memory caches during rebalance.
+     * Non baseline node fails in cluster with persistent and memory caches during rebalance.
      */
     @Test
     public void testRebalanceNoneBltNodeFailedOnMixedCluster() throws Exception {
@@ -170,7 +169,7 @@ public class RebalanceCancellationTest extends GridCommonAbstractTest {
     }
 
     /**
-     *
+     * Filtered node leaves cluster with persistent region.
      */
     @Test
     @Ignore("https://ggsystems.atlassian.net/browse/GG-26764")
@@ -179,7 +178,7 @@ public class RebalanceCancellationTest extends GridCommonAbstractTest {
     }
 
     /**
-     *
+     * Filtered node leaves cluster with memory region.
      */
     @Test
     @Ignore("https://ggsystems.atlassian.net/browse/GG-26764")
@@ -188,7 +187,7 @@ public class RebalanceCancellationTest extends GridCommonAbstractTest {
     }
 
     /**
-     *
+     * Filtered node leaves cluster with persistent and memory regions.
      */
     @Test
     @Ignore("https://ggsystems.atlassian.net/browse/GG-26764")
@@ -197,7 +196,7 @@ public class RebalanceCancellationTest extends GridCommonAbstractTest {
     }
 
     /**
-     *
+     * Cache stops/starts several times on persistent cluster.
      */
     @Test
     public void testRebalanceDynamicCacheOnOnlyPersistenceCluster() throws Exception {
@@ -205,7 +204,7 @@ public class RebalanceCancellationTest extends GridCommonAbstractTest {
     }
 
     /**
-     *
+     * Cache stop/start several times on memory cluster.
      */
     @Test
     public void testRebalanceDynamicCacheOnOnlyInMemoryCluster() throws Exception {
@@ -213,7 +212,7 @@ public class RebalanceCancellationTest extends GridCommonAbstractTest {
     }
 
     /**
-     *
+     * Cache stop/start several times on cluster with persistent and memory regions.
      */
     @Test
     public void testRebalanceDynamicCacheOnMixedCluster() throws Exception {
@@ -221,9 +220,11 @@ public class RebalanceCancellationTest extends GridCommonAbstractTest {
     }
 
     /**
+     * Trigger rebalance when dynamic caches stop/start.
+     *
      * @param persistence Persistent flag.
-     * @param addtiotionalRegion
-     * @throws Exception
+     * @param addtiotionalRegion Use additional (non default) region.
+     * @throws Exception If failed.
      */
     public void testRebalanceDynamicCache(boolean persistence, boolean addtiotionalRegion) throws Exception {
         persistenceEnabled = persistence;
@@ -270,7 +271,12 @@ public class RebalanceCancellationTest extends GridCommonAbstractTest {
     }
 
     /**
+     * Trigger rebalance when non-blt node left topology.
      *
+     * @param persistence Persistent flag.
+     * @param addtiotionalRegion Use additional (non default) region.
+     * @param fail If true node forcibly falling.
+     * @throws Exception If failed.
      */
     public void testRebalanceNoneBltNode(boolean persistence, boolean addtiotionalRegion,
         boolean fail) throws Exception {
@@ -334,7 +340,11 @@ public class RebalanceCancellationTest extends GridCommonAbstractTest {
     }
 
     /**
+     * Trigger rebalance when filtered node left topology.
      *
+     * @param persistence Persistent flag.
+     * @param addtiotionalRegion Use additional (non default) region.
+     * @throws Exception If failed.
      */
     public void testRebalanceFilteredNode(boolean persistence, boolean addtiotionalRegion) throws Exception {
         persistenceEnabled = persistence;
@@ -379,10 +389,12 @@ public class RebalanceCancellationTest extends GridCommonAbstractTest {
     }
 
     /**
+     * Finds all existed rebalance future by all cache for Ignite's instance specified.
+     *
      * @param ignite Ignite.
      * @return Array of rebelance futures.
      */
-    @NotNull private IgniteInternalFuture<Boolean>[] getAllRebalanceFutures(IgniteEx ignite) {
+    private IgniteInternalFuture<Boolean>[] getAllRebalanceFutures(IgniteEx ignite) {
         IgniteInternalFuture<Boolean>[] futs = new IgniteInternalFuture[ignite.cacheNames().size()];
 
         int i = 0;
@@ -404,7 +416,7 @@ public class RebalanceCancellationTest extends GridCommonAbstractTest {
      * @param rebalanceFuture Rebalance future.
      * @return Information string about passed future.
      */
-    @NotNull private String futInfoString(IgniteInternalFuture<Boolean> rebalanceFuture) {
+    private String futInfoString(IgniteInternalFuture<Boolean> rebalanceFuture) {
         return "Fut: " + rebalanceFuture
             + " is done: " + rebalanceFuture.isDone()
             + " result: " + (rebalanceFuture.isDone() ? rebalanceFuture.result() : "NoN");
@@ -426,11 +438,13 @@ public class RebalanceCancellationTest extends GridCommonAbstractTest {
     }
 
     /**
+     * Starts node with name <code>name</code> and blocks demand message for custom caches.
+     *
      * @param name Node instance name.
      * @return Test communication SPI.
      * @throws Exception If failed.
      */
-    @NotNull private TestRecordingCommunicationSpi startNodeWithBlockingRebalance(String name) throws Exception {
+    private TestRecordingCommunicationSpi startNodeWithBlockingRebalance(String name) throws Exception {
         IgniteConfiguration cfg = optimize(getConfiguration(name));
 
         TestRecordingCommunicationSpi communicationSpi = (TestRecordingCommunicationSpi)cfg.getCommunicationSpi();
