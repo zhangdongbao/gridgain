@@ -1761,7 +1761,7 @@ public class BinaryObjectBuilderAdditionalSelfTest extends GridCommonAbstractTes
     }
 
     /** Test class with enum and array of enums. */
-    static class TestClsWithEnum {
+    public static class TestClsWithEnum {
         /** */
         private final TestEnum testEnum;
 
