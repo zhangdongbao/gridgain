@@ -472,5 +472,4 @@ public class RebalanceCancellationTest extends GridCommonAbstractTest {
 
         return communicationSpi;
     }
-
 }

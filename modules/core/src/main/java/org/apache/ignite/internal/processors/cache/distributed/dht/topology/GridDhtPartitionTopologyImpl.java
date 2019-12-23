@@ -1475,16 +1475,6 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
                     }
                 }
 
-                if (msgTopVer != null && lastTopChangeVer.compareTo(msgTopVer) > 0) {
-                    U.warn(log, "Stale version for full partition map update message (will ignore) [" +
-                        "grp=" + grp.cacheOrGroupName() +
-                        ", lastTopChange=" + lastTopChangeVer +
-                        ", readTopVer=" + readyTopVer +
-                        ", msgVer=" + msgTopVer + ']');
-
-                    return false;
-                }
-
                 boolean fullMapUpdated = (node2part == null);
 
                 if (node2part != null) {
@@ -1496,7 +1486,8 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
 
                             if (log.isDebugEnabled()) {
                                 log.debug("Overriding partition map in full update map [" +
-                                    "grp=" + grp.cacheOrGroupName() +
+                                    "node=" + part.nodeId() +
+                                    ", grp=" + grp.cacheOrGroupName() +
                                     ", exchVer=" + exchangeVer +
                                     ", curPart=" + mapString(part) +
                                     ", newPart=" + mapString(newPart) + ']');
@@ -1506,7 +1497,15 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
                                 updateSeq.setIfGreater(newPart.updateSequence());
                         }
                         else {
-                            // If for some nodes current partition has a newer map, then we keep the newer value.
+                            if (log.isDebugEnabled()) {
+                                log.debug("Partitions map for the node keeps newer value than message [" +
+                                    "node=" + part.nodeId() +
+                                    ", grp=" + grp.cacheOrGroupName() +
+                                    ", exchVer=" + exchangeVer +
+                                    ", curPart=" + mapString(part) +
+                                    ", newPart=" + mapString(newPart) + ']');
+                            }
+
                             partMap.put(part.nodeId(), part);
                         }
                     }
