@@ -1494,8 +1494,8 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
                                 updateSeq.setIfGreater(newPart.updateSequence());
                         }
                         else {
-                            if (log.isDebugEnabled()) {
-                                log.debug("Partitions map for the node keeps newer value than message [" +
+                            if (log.isInfoEnabled()) {
+                                log.info("Partitions map for the node keeps newer value than message [" +
                                     "node=" + part.nodeId() +
                                     ", grp=" + grp.cacheOrGroupName() +
                                     ", exchVer=" + exchangeVer +
@@ -1845,8 +1845,8 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
 
                     // This is usual situation when partition maps are equal, just print debug message.
                     if (cur.compareTo(parts) == 0) {
-                        if (log.isTraceEnabled())
-                            log.trace(msg);
+                        if (log.isInfoEnabled())
+                            log.info(msg);
                     }
                     else
                         U.warn(log, msg);
