@@ -5195,10 +5195,12 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     public void addOutdateCounterGrps(CacheGroupContext grp) {
         assert !isDone() : "Exchange was done, outdated group should be processed before.";
 
-        if (outdateCounterGrps == null)
-            outdateCounterGrps = new HashSet<>();
+        synchronized (mux) {
+            if (outdateCounterGrps == null)
+                outdateCounterGrps = new HashSet<>();
 
-        outdateCounterGrps.add(grp.groupId());
+            outdateCounterGrps.add(grp.groupId());
+        }
     }
 
     /**

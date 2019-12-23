@@ -1395,10 +1395,7 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
      * @return True if current partition map should be overwritten by new partition map, false in other case
      */
     private boolean shouldOverridePartitionMap(GridDhtPartitionMap currentMap, GridDhtPartitionMap newMap) {
-        return newMap != null &&
-            (newMap.topologyVersion().compareTo(currentMap.topologyVersion()) > 0 ||
-                newMap.topologyVersion().compareTo(currentMap.topologyVersion()) == 0 &&
-                    newMap.updateSequence() > currentMap.updateSequence());
+        return newMap != null && newMap.compareTo(currentMap) > 0;
     }
 
     /** {@inheritDoc} */
@@ -2744,21 +2741,6 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
 
         try {
             return node2part.get(nodeId);
-        }
-        finally {
-            lock.readLock().unlock();
-        }
-    }
-
-    /** {@inheritDoc} */
-    @Override public @Nullable AffinityTopologyVersion topologyVersion(UUID nodeId) {
-        lock.readLock().lock();
-
-        try {
-            if (node2part.get(nodeId) == null)
-                return AffinityTopologyVersion.NONE;
-
-            return node2part.get(nodeId).topologyVersion();
         }
         finally {
             lock.readLock().unlock();

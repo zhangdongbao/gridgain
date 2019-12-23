@@ -1162,21 +1162,6 @@ public class GridClientPartitionTopology implements GridDhtPartitionTopology {
     }
 
     /** {@inheritDoc} */
-    @Override public @Nullable AffinityTopologyVersion topologyVersion(UUID nodeId) {
-        lock.readLock().lock();
-
-        try {
-            if (node2part.get(nodeId) == null)
-                return AffinityTopologyVersion.NONE;
-
-            return node2part.get(nodeId).topologyVersion();
-        }
-        finally {
-            lock.readLock().unlock();
-        }
-    }
-
-    /** {@inheritDoc} */
     @Override public Map<UUID, Set<Integer>> resetOwners(
         Map<Integer, Set<UUID>> ownersByUpdCounters,
         Set<Integer> haveHist,
