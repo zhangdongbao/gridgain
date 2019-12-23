@@ -24,6 +24,7 @@ namespace Apache.Ignite.Core.Tests.Client.Cache
     using System.Net;
     using System.Text.RegularExpressions;
     using System.Threading.Tasks;
+    using Apache.Ignite.Core.Cache.Affinity.Rendezvous;
     using Apache.Ignite.Core.Cache.Configuration;
     using Apache.Ignite.Core.Client;
     using Apache.Ignite.Core.Client.Cache;
@@ -274,7 +275,6 @@ namespace Apache.Ignite.Core.Tests.Client.Cache
             CollectionAssert.AreEquivalent(expectedRequests, requests);
         }
 
-
         [Test]
         public void ReplicatedCacheGet_RepeatedCall_DoesNotRequestAffinityMapping()
         {
@@ -309,6 +309,41 @@ namespace Apache.Ignite.Core.Tests.Client.Cache
             };
 
             Assert.AreEqual(expectedRequests, reqs[0].Requests);
+        }
+
+        [Test]
+        public void ReplicatedCachePut_RequestRoutedToDefaultNode()
+        {
+            var cfg = new CacheConfiguration(TestContext.CurrentContext.Test.Name)
+            {
+                CacheMode = CacheMode.Replicated
+            };
+
+            AssertPutIsRoutedToDefaultNode(cfg);
+        }
+
+        [Test]
+        public void CustomAffinityCachePut_RoutedToDefaultNode()
+        {
+            var cfg = new CacheConfiguration(TestContext.CurrentContext.Test.Name)
+            {
+                CacheMode = CacheMode.Partitioned,
+                AffinityFunction = new CustomAffinityFunction()
+            };
+
+            AssertPutIsRoutedToDefaultNode(cfg);
+        }
+
+        private void AssertPutIsRoutedToDefaultNode(CacheConfiguration cfg)
+        {
+            Ignition.GetIgnite().CreateCache<int, int>(cfg);
+            var cache = Client.GetCache<int, int>(cfg.Name);
+
+            for (var i = 0; i < 20; i++)
+            {
+                cache.Put(i, i);
+                Assert.AreEqual(1, GetClientRequestGridIndex("Put"));
+            }
         }
 
         [Test]
@@ -545,6 +580,15 @@ namespace Apache.Ignite.Core.Tests.Client.Cache
             }
 
             throw new InvalidOperationException("Can't determine primary node");
+        }
+        
+        private class CustomAffinityFunction : RendezvousAffinityFunction
+        {
+            public override int Partitions
+            {
+                get { return 10; }
+                set { throw new NotSupportedException(); }
+            }
         }
     }
 }
