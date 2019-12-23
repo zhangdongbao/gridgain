@@ -189,7 +189,9 @@ class BinaryBuilderSerializer {
         }
 
         if (val instanceof Object[]) {
-            int compTypeId = writer.context().typeId(((Object[])val).getClass().getComponentType().getName());
+            Class<?> compCls = ((Object[])val).getClass().getComponentType();
+
+            int compTypeId = writer.context().typeId(compCls.getName());
 
             if (val instanceof BinaryBuilderEnum[]) {
                 writeArray(writer, GridBinaryMarshaller.ENUM_ARR, (Object[])val, compTypeId);
@@ -197,9 +199,8 @@ class BinaryBuilderSerializer {
                 return;
             }
 
-            Class<?> compCls = ((Object[])val).getClass().getComponentType();
 
-            if (compCls.isAssignableFrom(BinaryEnumObjectImpl.class)) {
+            if (BinaryEnumObjectImpl.class.isAssignableFrom(compCls)) {
                 writeArray(writer, GridBinaryMarshaller.ENUM_ARR, (Object[])val, compTypeId);
 
                 return;
