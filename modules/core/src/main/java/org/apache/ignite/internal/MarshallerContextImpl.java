@@ -367,8 +367,6 @@ public class MarshallerContextImpl implements MarshallerContext {
     @Override public Class getClass(int typeId, ClassLoader ldr) throws ClassNotFoundException, IgniteCheckedException {
         String clsName = getClassName(JAVA_ID, typeId);
 
-        System.err.println("\n\n>>> Found cls name: " + clsName + "\n\n");
-
         if (clsName == null)
             throw new ClassNotFoundException("Unknown type ID: " + typeId);
 
