@@ -296,6 +296,9 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
                         if (state != GridDhtPartitionState.OWNING) {
                             rebalanced = false;
 
+                            if (log.isInfoEnabled())
+                                log.info("Waiting grp: " + checkGrpId + " node: " + waitNode + " part: " + part);
+
                             break;
                         }
                         else
