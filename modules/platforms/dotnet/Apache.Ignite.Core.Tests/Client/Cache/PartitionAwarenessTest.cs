@@ -339,10 +339,13 @@ namespace Apache.Ignite.Core.Tests.Client.Cache
             Ignition.GetIgnite().CreateCache<int, int>(cfg);
             var cache = Client.GetCache<int, int>(cfg.Name);
 
+            Client.GetCacheNames();
+            var defaultNodeIdx = GetClientRequestGridIndex("GetNames");
+
             for (var i = 0; i < 20; i++)
             {
                 cache.Put(i, i);
-                Assert.AreEqual(1, GetClientRequestGridIndex("Put"));
+                Assert.AreEqual(defaultNodeIdx, GetClientRequestGridIndex("Put"));
             }
         }
 
