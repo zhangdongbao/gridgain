@@ -134,7 +134,8 @@ public class JdbcConnectionContext extends ClientListenerAbstractConnectionConte
     }
 
     /** {@inheritDoc} */
-    @Override public void initializeFromHandshake(ClientListenerProtocolVersion ver, BinaryReaderExImpl reader)
+    @Override public void initializeFromHandshake(GridNioSession ses,
+        ClientListenerProtocolVersion ver, BinaryReaderExImpl reader)
         throws IgniteCheckedException {
         assert SUPPORTED_VERS.contains(ver): "Unsupported JDBC protocol version.";
 
@@ -198,7 +199,7 @@ public class JdbcConnectionContext extends ClientListenerAbstractConnectionConte
                 throw new IgniteCheckedException("Handshake error: " + e.getMessage(), e);
             }
 
-            actx = authenticate(user, passwd);
+            actx = authenticate(ses.certificates(), user, passwd);
         }
 
         parser = new JdbcMessageParser(ctx, ver);
@@ -211,7 +212,7 @@ public class JdbcConnectionContext extends ClientListenerAbstractConnectionConte
 
                     byte[] outMsg = parser.encode(resp);
 
-                    ses.send(outMsg);
+                    JdbcConnectionContext.this.ses.send(outMsg);
                 }
             }
         };

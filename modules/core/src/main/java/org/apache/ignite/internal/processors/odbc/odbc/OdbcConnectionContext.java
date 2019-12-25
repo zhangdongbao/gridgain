@@ -117,7 +117,8 @@ public class OdbcConnectionContext extends ClientListenerAbstractConnectionConte
     }
 
     /** {@inheritDoc} */
-    @Override public void initializeFromHandshake(ClientListenerProtocolVersion ver, BinaryReaderExImpl reader)
+    @Override public void initializeFromHandshake(GridNioSession ses,
+        ClientListenerProtocolVersion ver, BinaryReaderExImpl reader)
         throws IgniteCheckedException {
         assert SUPPORTED_VERS.contains(ver): "Unsupported ODBC protocol version.";
 
@@ -152,7 +153,7 @@ public class OdbcConnectionContext extends ClientListenerAbstractConnectionConte
             nestedTxMode = NestedTxMode.fromByte(nestedTxModeVal);
         }
 
-        AuthorizationContext actx = authenticate(user, passwd);
+        AuthorizationContext actx = authenticate(ses.certificates(), user, passwd);
 
         ClientListenerResponseSender sender = new ClientListenerResponseSender() {
             @Override public void send(ClientListenerResponse resp) {
@@ -162,7 +163,7 @@ public class OdbcConnectionContext extends ClientListenerAbstractConnectionConte
 
                     byte[] outMsg = parser.encode(resp);
 
-                    ses.send(outMsg);
+                    OdbcConnectionContext.this.ses.send(outMsg);
                 }
             }
         };
