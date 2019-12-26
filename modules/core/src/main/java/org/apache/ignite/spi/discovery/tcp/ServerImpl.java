@@ -42,6 +42,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -2633,7 +2634,7 @@ class ServerImpl extends TcpDiscoveryImpl {
         /** Processed custom message IDs. */
         private Set<IgniteUuid> procCustomMsgs = new GridBoundedLinkedHashSet<>(MAX * 2);
 
-        Map<IgniteUuid, PendingMessage> unverifiedMessages = new HashMap<>();
+        Map<IgniteUuid, PendingMessage> unverifiedMessages = new LinkedHashMap<>();
 
         /**
          * Adds pending message and shrinks queue if it exceeds limit
