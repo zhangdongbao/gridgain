@@ -16,20 +16,17 @@
 
 package org.apache.ignite.internal.jdbc.thin;
 
-import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.nio.file.FileSystems;
-import java.security.NoSuchAlgorithmException;
-import java.security.cert.X509Certificate;
-import java.sql.SQLException;
 import javax.cache.configuration.Factory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.X509TrustManager;
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.security.NoSuchAlgorithmException;
+import java.security.cert.X509Certificate;
+import java.sql.SQLException;
 import org.apache.ignite.IgniteException;
 import org.apache.ignite.internal.processors.odbc.SqlStateCode;
 import org.apache.ignite.internal.util.typedef.F;

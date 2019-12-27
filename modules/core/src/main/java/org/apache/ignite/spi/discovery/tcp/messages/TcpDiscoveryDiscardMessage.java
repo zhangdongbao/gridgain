@@ -34,17 +34,21 @@ public class TcpDiscoveryDiscardMessage extends TcpDiscoveryAbstractMessage {
     /** True if this is discard ID for custom event message. */
     private final boolean customMsgDiscard;
 
+    private final IgniteUuid msgRemovedId;
+
     /**
      * Constructor.
-     *
-     * @param creatorNodeId Creator node ID.
+     *  @param creatorNodeId Creator node ID.
      * @param msgId Message ID.
+     * @param msgRemovedId
      * @param customMsgDiscard Flag indicating whether the ID to discard is for a custom message or not.
      */
-    public TcpDiscoveryDiscardMessage(UUID creatorNodeId, IgniteUuid msgId, boolean customMsgDiscard) {
+    public TcpDiscoveryDiscardMessage(UUID creatorNodeId, IgniteUuid msgId,
+        IgniteUuid msgRemovedId, boolean customMsgDiscard) {
         super(creatorNodeId);
 
         this.msgId = msgId;
+        this.msgRemovedId = msgRemovedId;
         this.customMsgDiscard = customMsgDiscard;
     }
 
@@ -55,6 +59,10 @@ public class TcpDiscoveryDiscardMessage extends TcpDiscoveryAbstractMessage {
      */
     public IgniteUuid msgId() {
         return msgId;
+    }
+
+    public IgniteUuid msgRemovedId() {
+        return msgRemovedId;
     }
 
     /**
