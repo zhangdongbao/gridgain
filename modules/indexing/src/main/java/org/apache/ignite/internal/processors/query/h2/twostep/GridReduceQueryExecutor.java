@@ -586,8 +586,19 @@ public class GridReduceQueryExecutor {
         }
     }
 
-    private void throttleOnRetry(ReduceQueryRun lastRun, long startTime, long retryTimeout,
-        int timeoutMultiplicator) {
+    /**
+     * Wait on retry.
+     *
+     * @param lastRun Previous query run.
+     * @param startTime Query start time.
+     * @param retryTimeout Query retry timeout.
+     * @param timeoutMultiplier Timeout multiplier.
+     */
+    private void throttleOnRetry(
+        @Nullable ReduceQueryRun lastRun,
+        long startTime,
+        long retryTimeout,
+        int timeoutMultiplier) {
         if (retryTimeout > 0 && (U.currentTimeMillis() - startTime > retryTimeout)) {
             //TODO: GG-23176: To be reafactored. Retry logic looks too complicated.
             // There are few cases when 'retryCause' can be undefined, so we should throw exception with proper message here.
@@ -602,7 +613,7 @@ public class GridReduceQueryExecutor {
         }
 
         try {
-            Thread.sleep(Math.min(10_000, timeoutMultiplicator * 10)); // Wait for exchange.
+            Thread.sleep(Math.min(10_000, timeoutMultiplier * 10)); // Wait for exchange.
         }
         catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -611,6 +622,12 @@ public class GridReduceQueryExecutor {
         }
     }
 
+    /**
+     * Check if query is cancelled.
+     *
+     * @param cancel Query cancel object.
+     * @throws CacheException If query was cancelled.
+     */
     private void ensureQueryNotCancelled(GridQueryCancel cancel) {
         if (Thread.currentThread().isInterrupted())
             throw new CacheException(new IgniteInterruptedCheckedException("Query was interrupted."));
@@ -629,7 +646,16 @@ public class GridReduceQueryExecutor {
         }
     }
 
-    @NotNull private List<GridCacheSqlQuery> prepareMapQueries(GridCacheTwoStepQuery qry, Object[] params,
+    /**
+     * Prepare map queries.
+     * @param qry TwoStep query.
+     * @param params Query parameters.
+     * @param singlePartMode Single partition mode flag.
+     * @return List of map queries.
+     */
+    @NotNull private List<GridCacheSqlQuery> prepareMapQueries(
+        GridCacheTwoStepQuery qry,
+        Object[] params,
         boolean singlePartMode) {
         List<GridCacheSqlQuery> mapQueries;
 
@@ -653,8 +679,20 @@ public class GridReduceQueryExecutor {
         return mapQueries;
     }
 
-    @NotNull
-    private ReduceQueryRun createReduceQueryRun(
+    /**
+     * Query run factory method.
+     *
+     * @param conn H2 connection.
+     * @param mapQueries Map queries.
+     * @param nodes Target nodes.
+     * @param pageSize Page size.
+     * @param segmentsPerIndex Segments per-index.
+     * @param skipMergeTbl Skip merge table flag.
+     * @param explain Explain query flag.
+     * @param dataPageScanEnabled DataPage scan enabled flag.
+     * @return Reduce query run.
+     */
+    @NotNull private ReduceQueryRun createReduceQueryRun(
         H2PooledConnection conn,
         List<GridCacheSqlQuery> mapQueries,
         Collection<ClusterNode> nodes,
@@ -716,11 +754,13 @@ public class GridReduceQueryExecutor {
     }
 
     /**
-     * Get query flags.
+     * Build query flags.
      *
      * @return Query flags.
      */
-    private int queryFlags(GridCacheTwoStepQuery qry, boolean enforceJoinOrder, boolean lazy,
+    private int queryFlags(GridCacheTwoStepQuery qry,
+        boolean enforceJoinOrder,
+        boolean lazy,
         Boolean dataPageScanEnabled) {
         if (qry.distributedJoins())
             enforceJoinOrder = true;

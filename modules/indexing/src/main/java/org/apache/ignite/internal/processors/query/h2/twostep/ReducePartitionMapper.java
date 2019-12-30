@@ -206,10 +206,13 @@ public class ReducePartitionMapper {
         // Explicit partitions mapping is not applicable to replicated cache.
         final AffinityAssignment topologyAssignment = cctx.affinity().assignment(topVer);
 
-        if (cctx.isReplicated())
-            nodes = new HashSet<>(topologyAssignment.nodes());
+        if (cctx.isReplicated()) {
+            // Mutable collection needed for this particular case.
+            nodes = isReplicatedOnly && cacheIds.size() > 1 ?
+                new HashSet<>(topologyAssignment.nodes()) : topologyAssignment.nodes();
+        }
         else
-            nodes = new HashSet<>(topologyAssignment.primaryPartitionNodes());
+            nodes = topologyAssignment.primaryPartitionNodes();
 
         return narrowToCaches(cctx, nodes, cacheIds, topVer, null, isReplicatedOnly);
     }

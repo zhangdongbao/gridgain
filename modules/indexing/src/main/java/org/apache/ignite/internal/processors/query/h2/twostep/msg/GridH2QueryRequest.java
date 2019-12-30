@@ -451,7 +451,11 @@ public class GridH2QueryRequest implements Message, GridCacheQueryMarshallable {
         return flags;
     }
 
-    /** Set query flags */
+    /**
+     * Build query flags.
+     *
+     * @return  Query flags.
+     */
     public static int queryFlags(boolean distributedJoins,
         boolean enforceJoinOrder,
         boolean lazy,
