@@ -1325,6 +1325,11 @@ public final class IgniteSystemProperties {
         "IGNITE_DISABLE_SMART_DR_THROTTLING";
 
     /**
+     * Only for test purposes.
+     */
+    public static final String IGNITE_DISABLE_GRP_STATE_LAZY_STORE = "IGNITE_DISABLE_GRP_STATE_LAZY_STORE";
+
+    /**
      * Enforces singleton.
      */
     private IgniteSystemProperties() {
