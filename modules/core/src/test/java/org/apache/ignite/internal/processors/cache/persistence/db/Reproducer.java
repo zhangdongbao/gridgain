@@ -189,8 +189,6 @@ public class Reproducer extends GridCommonAbstractTest {
 
         log.warning("Corrupted CP: " + corruptedCp);
 
-        //assertTrue(walMgr.reserved(corruptedCp));
-
         startGrid(1);
 
         try {
@@ -205,10 +203,6 @@ public class Reproducer extends GridCommonAbstractTest {
         boolean fullRebalanceInvoked = RebalanceCheckingCommunicationSpi.fullRebalances();
 
         RebalanceCheckingCommunicationSpi.cleanup();
-
-        //assertTrue("Historical rebalance hasn't been invoked.", histRebalanceInvoked);
-
-        //assertFalse("Full rebalance has been invoked.", fullRebalanceInvoked);
 
         System.out.println("histRebalanceInvoked = " + histRebalanceInvoked);
 
